@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ELEMENT Nagaland | Employee Management</title>
+  <meta name="description" content="Employee Management System for ELEMENT — Government of Nagaland. Track, manage, and organize your workforce locally.">
+  <link rel="stylesheet" href="assets/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-logo">
+            <i class="fa-solid fa-leaf"></i>
+          </div>
+          <div class="brand-text">
+            <h1>ELEMENT</h1>
+            <span>Govt. of Nagaland</span>
+          </div>
+        </div>
+      </div>
+
+      <nav class="sidebar-nav">
+        <a href="#" class="nav-item active" data-target="dashboard" id="nav-dashboard">
+          <div class="nav-icon"><i class="fa-solid fa-layer-group"></i></div>
+          <span>Dashboard</span>
+        </a>
+        <a href="#" class="nav-item" data-target="directory" id="nav-directory">
+          <div class="nav-icon"><i class="fa-solid fa-user-group"></i></div>
+          <span>Directory</span>
+        </a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="addEmployeeBtn" class="btn btn-primary w-100">
+          <i class="fa-solid fa-plus"></i>
+          <span>New Employee</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="main-content">
+      <!-- Top Bar -->
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div class="header-title">
+            <h2 id="pageTitle">Overview</h2>
+            <p id="pageSubtitle">Track and manage your workforce.</p>
+          </div>
+        </div>
+        <div class="topbar-right">
+          <div class="search-bar" id="searchBar">
+            <i class="fa-solid fa-magnifying-glass search-icon"></i>
+            <input type="text" id="searchInput" placeholder="Search by name or email..." autocomplete="off">
+          </div>
+          <div class="topbar-divider"></div>
+
+          <button class="icon-btn theme-toggle-btn" id="themeToggleBtn" aria-label="Toggle Dark Mode">
+            <i class="fa-solid fa-moon"></i>
+          </button>
+
+          <div class="user-chip">
+            <div class="user-avatar">A</div>
+            <div class="user-info">
+              <span class="user-name">Admin</span>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Scrollable Content -->
+      <div class="content-area">
+
+        <!-- ====== DASHBOARD VIEW ====== -->
+        <section id="dashboard" class="view-section active">
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-card-inner">
+                <div class="stat-icon-wrap bg-green">
+                  <i class="fa-solid fa-users"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-label">Total Employees</span>
+                  <span class="stat-value" id="statTotal">0</span>
+                </div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-inner">
+                <div class="stat-icon-wrap bg-blue">
+                  <i class="fa-solid fa-briefcase"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-label">Active Staff</span>
+                  <span class="stat-value" id="statActive">0</span>
+                </div>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-inner">
+                <div class="stat-icon-wrap bg-orange">
+                  <i class="fa-solid fa-building"></i>
+                </div>
+                <div class="stat-info">
+                  <span class="stat-label">Departments</span>
+                  <span class="stat-value" id="statDepts">0</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section-header">
+            <h3>Recently Added</h3>
+            <span class="text-muted">Newest members of the team</span>
+          </div>
+          <div class="recent-grid" id="recentEmpsGrid"></div>
+        </section>
+
+        <!-- ====== DIRECTORY VIEW ====== -->
+        <section id="directory" class="view-section d-none">
+          <div class="controls-bar">
+            <div class="filter-group">
+              <div class="filter-control">
+                <label for="deptFilter">Department</label>
+                <div class="select-wrapper">
+                  <select id="deptFilter" class="filter-select">
+                    <option value="all">All Departments</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Field Operations">Field Operations</option>
+                    <option value="Technical Support">Technical Support</option>
+                    <option value="Finance">Finance</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+              <div class="filter-control">
+                <label for="statusFilter">Status</label>
+                <div class="select-wrapper">
+                  <select id="statusFilter" class="filter-select">
+                    <option value="all">All Status</option>
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+              <div class="filter-control">
+                <label for="sortSelect">Sort By</label>
+                <div class="select-wrapper">
+                  <select id="sortSelect" class="filter-select">
+                    <option value="name-asc">Name A–Z</option>
+                    <option value="name-desc">Name Z–A</option>
+                    <option value="date-desc">Newest First</option>
+                    <option value="date-asc">Oldest First</option>
+                    <option value="dept-asc">Department A–Z</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="controls-right">
+              <div class="view-toggle">
+                <button class="icon-btn view-btn active" id="gridViewBtn" title="Grid View" aria-label="Grid view">
+                  <i class="fa-solid fa-grid-2"></i>
+                </button>
+                <button class="icon-btn view-btn" id="listViewBtn" title="List View" aria-label="List view">
+                  <i class="fa-solid fa-list"></i>
+                </button>
+              </div>
+              <div class="csv-actions">
+                <button class="btn btn-secondary btn-sm" id="exportCsvBtn" title="Export to CSV">
+                  <i class="fa-solid fa-download"></i>
+                  <span>Export</span>
+                </button>
+                <button class="btn btn-secondary btn-sm" id="importCsvBtn" title="Import from CSV">
+                  <i class="fa-solid fa-upload"></i>
+                  <span>Import</span>
+                </button>
+                <input type="file" id="csvFileInput" accept=".csv" class="d-none">
+              </div>
+              <span class="results-count" id="resultsCount"></span>
+            </div>
+          </div>
+
+          <div class="employee-grid" id="employeeGrid"></div>
+        </section>
+
+        <!-- ====== EMPLOYEE DETAIL VIEW ====== -->
+        <section id="employeeDetail" class="view-section d-none">
+          <div class="detail-toolbar">
+            <button class="btn btn-secondary btn-sm" id="backToDirectoryBtn">
+              <i class="fa-solid fa-arrow-left"></i>
+              <span>Back to Directory</span>
+            </button>
+            <div class="detail-toolbar-actions">
+              <button class="btn btn-secondary btn-sm" id="detailEditBtn">
+                <i class="fa-solid fa-pen"></i>
+                <span>Edit</span>
+              </button>
+              <button class="btn btn-danger btn-sm" id="detailDeleteBtn">
+                <i class="fa-solid fa-trash"></i>
+                <span>Delete</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-header" id="detailHeader">
+            <!-- Populated dynamically -->
+          </div>
+
+          <div class="detail-tabs">
+            <button class="tab-btn active" data-tab="info">
+              <i class="fa-solid fa-circle-info"></i> Information
+            </button>
+            <button class="tab-btn" data-tab="documents">
+              <i class="fa-solid fa-folder-open"></i> Documents
+            </button>
+            <button class="tab-btn" data-tab="timeline">
+              <i class="fa-solid fa-clock-rotate-left"></i> Timeline
+            </button>
+          </div>
+
+          <div class="detail-content">
+            <div class="tab-panel active" id="tab-info">
+              <!-- Populated dynamically -->
+            </div>
+            <div class="tab-panel" id="tab-documents">
+              <div class="coming-soon">
+                <i class="fa-solid fa-folder-open"></i>
+                <h4>Document Management</h4>
+                <p>Upload and manage employee documents. Coming in a future update.</p>
+              </div>
+            </div>
+            <div class="tab-panel" id="tab-timeline">
+              <div class="coming-soon">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <h4>Activity Timeline</h4>
+                <p>View employee activity history. Coming in a future update.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <!-- ====== EMPLOYEE MODAL (Extended) ====== -->
+  <div class="modal-overlay d-none" id="employeeModal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add New Employee</h3>
+        <button class="close-btn" id="closeModalBtn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="employeeForm">
+          <input type="hidden" id="empId">
+
+          <!-- Section: Basic Info -->
+          <fieldset class="form-section">
+            <legend>Basic Information</legend>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empName">Full Name <span class="required">*</span></label>
+                <input type="text" id="empName" required placeholder="e.g. Althea Konyak">
+              </div>
+              <div class="form-group">
+                <label for="empEmail">Email Address <span class="required">*</span></label>
+                <input type="email" id="empEmail" required placeholder="e.g. althea@element.in">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empPhone">Phone Number <span class="required">*</span></label>
+                <input type="tel" id="empPhone" required placeholder="e.g. 9876543210">
+              </div>
+              <div class="form-group">
+                <label for="empDob">Date of Birth</label>
+                <input type="date" id="empDob">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empGender">Gender</label>
+                <div class="select-wrapper">
+                  <select id="empGender">
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+              <div class="form-group">
+                <label for="empBloodGroup">Blood Group</label>
+                <div class="select-wrapper">
+                  <select id="empBloodGroup">
+                    <option value="">Select</option>
+                    <option value="A+">A+</option>
+                    <option value="A-">A−</option>
+                    <option value="B+">B+</option>
+                    <option value="B-">B−</option>
+                    <option value="O+">O+</option>
+                    <option value="O-">O−</option>
+                    <option value="AB+">AB+</option>
+                    <option value="AB-">AB−</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="empAddress">Address</label>
+              <textarea id="empAddress" rows="2" placeholder="e.g. Kohima, Nagaland"></textarea>
+            </div>
+          </fieldset>
+
+          <!-- Section: Employment -->
+          <fieldset class="form-section">
+            <legend>Employment Details</legend>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empRole">Role / Designation <span class="required">*</span></label>
+                <input type="text" id="empRole" required placeholder="e.g. Forest Ranger">
+              </div>
+              <div class="form-group">
+                <label for="empDept">Department <span class="required">*</span></label>
+                <div class="select-wrapper">
+                  <select id="empDept" required>
+                    <option value="" disabled selected>Select Department</option>
+                    <option value="Administration">Administration</option>
+                    <option value="Field Operations">Field Operations</option>
+                    <option value="Technical Support">Technical Support</option>
+                    <option value="Finance">Finance</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empGrade">Grade / Level</label>
+                <input type="text" id="empGrade" placeholder="e.g. Level 4">
+              </div>
+              <div class="form-group">
+                <label for="empManager">Reports To</label>
+                <div class="select-wrapper">
+                  <select id="empManager">
+                    <option value="">None (Top Level)</option>
+                    <!-- Populated dynamically -->
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empJoinDate">Join Date <span class="required">*</span></label>
+                <input type="date" id="empJoinDate" required>
+              </div>
+              <div class="form-group">
+                <label for="empStatus">Status</label>
+                <div class="select-wrapper">
+                  <select id="empStatus">
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Section: Emergency Contact -->
+          <fieldset class="form-section">
+            <legend>Emergency Contact</legend>
+            <div class="form-row">
+              <div class="form-group">
+                <label for="empEmergencyName">Contact Name</label>
+                <input type="text" id="empEmergencyName" placeholder="e.g. Naga Sharma">
+              </div>
+              <div class="form-group">
+                <label for="empEmergencyPhone">Contact Phone</label>
+                <input type="tel" id="empEmergencyPhone" placeholder="e.g. 9876500000">
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Section: Notes -->
+          <fieldset class="form-section">
+            <legend>Additional Notes</legend>
+            <div class="form-group">
+              <label for="empNotes">Notes</label>
+              <textarea id="empNotes" rows="3" placeholder="Any additional information..."></textarea>
+            </div>
+          </fieldset>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Employee</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="assets/js/app.js"></script>
+</body>
+</html>
