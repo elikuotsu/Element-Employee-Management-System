@@ -34,46 +34,6 @@ initTheme();
 // ===== DATA MODEL & STORAGE =====
 const STORAGE_KEY = 'element_nagaland_employees';
 
-// Extended seed data with all new fields
-const seedData = [
-  {
-    id: '1', name: 'Althea Konyak', role: 'Forest Ranger', department: 'Field Operations',
-    email: 'althea.k@element.in', phone: '9876543210', joinDate: '2023-01-15', status: 'Active',
-    dob: '1990-05-12', gender: 'Female', bloodGroup: 'O+', address: 'Ward 5, Kohima, Nagaland',
-    grade: 'Level 3', managerId: '', emergencyName: 'Kito Konyak', emergencyPhone: '9876500001', notes: ''
-  },
-  {
-    id: '2', name: 'David Sema', role: 'Data Analyst', department: 'Technical Support',
-    email: 'david.s@element.in', phone: '9876543211', joinDate: '2023-03-22', status: 'Active',
-    dob: '1992-08-20', gender: 'Male', bloodGroup: 'B+', address: 'Zunheboto Town, Nagaland',
-    grade: 'Level 4', managerId: '', emergencyName: 'Leni Sema', emergencyPhone: '9876500002', notes: ''
-  },
-  {
-    id: '3', name: 'Zovi Angami', role: 'Project Coordinator', department: 'Administration',
-    email: 'zovi.a@element.in', phone: '9876543212', joinDate: '2022-11-05', status: 'Inactive',
-    dob: '1988-02-14', gender: 'Female', bloodGroup: 'A+', address: 'Dimapur, Nagaland',
-    grade: 'Level 5', managerId: '', emergencyName: '', emergencyPhone: '', notes: 'On extended leave'
-  },
-  {
-    id: '4', name: 'Imti Ao', role: 'Accountant', department: 'Finance',
-    email: 'imti.ao@element.in', phone: '9876543213', joinDate: '2024-02-10', status: 'Active',
-    dob: '1995-11-30', gender: 'Male', bloodGroup: 'AB+', address: 'Mokokchung, Nagaland',
-    grade: 'Level 3', managerId: '', emergencyName: 'Temsu Ao', emergencyPhone: '9876500004', notes: ''
-  },
-  {
-    id: '5', name: 'Neizo Mero', role: 'GIS Specialist', department: 'Technical Support',
-    email: 'neizo.m@element.in', phone: '9876543214', joinDate: '2024-06-01', status: 'Active',
-    dob: '1993-07-08', gender: 'Male', bloodGroup: 'O-', address: 'Phek Town, Nagaland',
-    grade: 'Level 4', managerId: '2', emergencyName: '', emergencyPhone: '', notes: ''
-  },
-  {
-    id: '6', name: 'Sentila Jamir', role: 'HR Officer', department: 'Administration',
-    email: 'sentila.j@element.in', phone: '9876543215', joinDate: '2024-08-20', status: 'Active',
-    dob: '1991-12-03', gender: 'Female', bloodGroup: 'B-', address: 'Mon Town, Nagaland',
-    grade: 'Level 5', managerId: '', emergencyName: 'Alem Jamir', emergencyPhone: '9876500006', notes: ''
-  }
-];
-
 // Ensure backward compat: add default values for new fields if they're missing
 function normalizeEmployee(emp) {
   return {
@@ -99,12 +59,7 @@ function normalizeEmployee(emp) {
 
 function getEmployees() {
   const data = localStorage.getItem(STORAGE_KEY);
-  if (!data) {
-    const normalized = seedData.map(normalizeEmployee);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
-    return normalized;
-  }
-  // Normalize on read to handle old data missing new fields
+  if (!data) return [];
   return JSON.parse(data).map(normalizeEmployee);
 }
 
