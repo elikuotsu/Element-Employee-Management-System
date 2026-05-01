@@ -33,6 +33,10 @@
           <label for="loginPassword">Password</label>
           <input type="password" id="loginPassword" required placeholder="Your password" autocomplete="current-password">
         </div>
+        <label class="checkbox-row" for="loginRemember">
+          <input type="checkbox" id="loginRemember">
+          <span>Remember me on this device</span>
+        </label>
         <div class="auth-error d-none" id="loginError"></div>
         <button type="submit" class="btn btn-primary w-100" id="loginSubmitBtn">
           <i class="fa-solid fa-right-to-bracket"></i>
@@ -54,6 +58,10 @@
           <label for="signupPassword">Password</label>
           <input type="password" id="signupPassword" required placeholder="At least 6 characters" minlength="6" autocomplete="new-password">
         </div>
+        <label class="checkbox-row" for="signupRemember">
+          <input type="checkbox" id="signupRemember">
+          <span>Keep me signed in on this device</span>
+        </label>
         <div class="auth-error d-none" id="signupError"></div>
         <button type="submit" class="btn btn-primary w-100" id="signupSubmitBtn">
           <i class="fa-solid fa-user-plus"></i>
@@ -83,12 +91,25 @@
           <div class="nav-icon"><i class="fa-solid fa-user-group"></i></div>
           <span>Directory</span>
         </a>
+        <a href="#" class="nav-item" data-target="leaves" id="nav-leaves">
+          <div class="nav-icon"><i class="fa-solid fa-plane-departure"></i></div>
+          <span>Leave Requests</span>
+          <span class="nav-badge d-none" id="leavesBadge">0</span>
+        </a>
+        <a href="#" class="nav-item d-none" data-target="users" id="nav-users">
+          <div class="nav-icon"><i class="fa-solid fa-user-shield"></i></div>
+          <span>User Roles</span>
+        </a>
       </nav>
 
       <div class="sidebar-footer">
-        <button id="addEmployeeBtn" class="btn btn-primary w-100">
+        <button id="addEmployeeBtn" class="btn btn-primary w-100 d-none">
           <i class="fa-solid fa-plus"></i>
           <span>New Employee</span>
+        </button>
+        <button id="requestLeaveSidebarBtn" class="btn btn-secondary w-100" style="margin-top:0.5rem">
+          <i class="fa-solid fa-calendar-plus"></i>
+          <span>Request Leave</span>
         </button>
       </div>
     </aside>
@@ -121,13 +142,19 @@
             <div class="user-avatar" id="userAvatar">A</div>
             <div class="user-info">
               <span class="user-name" id="userName">Admin</span>
+              <span class="user-role-badge" id="userRoleBadge">employee</span>
             </div>
             <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem; color: var(--text-muted);"></i>
             <div class="user-menu d-none" id="userMenu">
               <div class="user-menu-info">
                 <div class="user-menu-name" id="userMenuName">Admin</div>
                 <div class="user-menu-email" id="userMenuEmail">admin@element.in</div>
+                <div class="user-menu-role" id="userMenuRole">employee</div>
               </div>
+              <button type="button" class="user-menu-item" id="claimOwnerBtn">
+                <i class="fa-solid fa-key"></i>
+                <span>Claim Owner Access</span>
+              </button>
               <button type="button" class="user-menu-item" id="logoutBtn">
                 <i class="fa-solid fa-right-from-bracket"></i>
                 <span>Sign Out</span>
@@ -310,6 +337,72 @@
             </div>
           </div>
         </section>
+
+        <!-- ====== LEAVE REQUESTS VIEW ====== -->
+        <section id="leaves" class="view-section d-none">
+          <div class="controls-bar">
+            <div class="filter-group">
+              <div class="filter-control">
+                <label for="leaveStatusFilter">Status</label>
+                <div class="select-wrapper">
+                  <select id="leaveStatusFilter" class="filter-select">
+                    <option value="all">All</option>
+                    <option value="Pending" selected>Pending</option>
+                    <option value="Approved">Approved</option>
+                    <option value="Rejected">Rejected</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+              <div class="filter-control" id="leaveScopeWrap">
+                <label for="leaveScopeFilter">Scope</label>
+                <div class="select-wrapper">
+                  <select id="leaveScopeFilter" class="filter-select">
+                    <option value="all">Everyone</option>
+                    <option value="mine">My requests</option>
+                  </select>
+                  <i class="fa-solid fa-chevron-down select-icon"></i>
+                </div>
+              </div>
+            </div>
+            <div class="controls-right">
+              <button class="btn btn-primary btn-sm" id="newLeaveBtn">
+                <i class="fa-solid fa-calendar-plus"></i>
+                <span>Request Leave</span>
+              </button>
+              <span class="results-count" id="leaveResultsCount"></span>
+            </div>
+          </div>
+
+          <div class="leave-list" id="leaveList"></div>
+        </section>
+
+        <!-- ====== USER ROLES VIEW (admin / owner only) ====== -->
+        <section id="users" class="view-section d-none">
+          <div class="users-banner">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>
+              Owners can promote anyone, including transferring ownership. Admins can
+              promote employees to admin or demote admins to employee. Nobody can
+              change their own role.
+            </span>
+          </div>
+          <div class="users-table-wrap">
+            <table class="users-table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Joined</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="usersTableBody"></tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </main>
   </div>
@@ -470,6 +563,130 @@
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
             <button type="submit" class="btn btn-primary">Save Employee</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== LEAVE REQUEST MODAL ====== -->
+  <div class="modal-overlay d-none" id="leaveModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="leaveModalTitle">Request Leave</h3>
+        <button class="close-btn" id="closeLeaveModalBtn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <form id="leaveForm">
+          <input type="hidden" id="leaveId">
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="leaveType">Leave Type <span class="required">*</span></label>
+              <div class="select-wrapper">
+                <select id="leaveType" required>
+                  <option value="Casual">Casual</option>
+                  <option value="Sick">Sick</option>
+                  <option value="Earned">Earned</option>
+                  <option value="Maternity">Maternity</option>
+                  <option value="Paternity">Paternity</option>
+                  <option value="Unpaid">Unpaid</option>
+                  <option value="Other">Other</option>
+                </select>
+                <i class="fa-solid fa-chevron-down select-icon"></i>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label for="leaveStart">Start Date <span class="required">*</span></label>
+              <input type="date" id="leaveStart" required>
+            </div>
+            <div class="form-group">
+              <label for="leaveEnd">End Date <span class="required">*</span></label>
+              <input type="date" id="leaveEnd" required>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="leaveReason">Reason</label>
+            <textarea id="leaveReason" rows="3" placeholder="Briefly describe the reason for this leave..."></textarea>
+          </div>
+
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="cancelLeaveBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary">Submit Request</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== LEAVE REVIEW MODAL (admin) ====== -->
+  <div class="modal-overlay d-none" id="leaveReviewModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="leaveReviewTitle">Review Leave Request</h3>
+        <button class="close-btn" id="closeLeaveReviewBtn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="leaveReviewSummary" class="leave-summary"></div>
+        <form id="leaveReviewForm">
+          <input type="hidden" id="leaveReviewId">
+          <div class="form-group">
+            <label for="leaveReviewNotes">Review Notes (optional)</label>
+            <textarea id="leaveReviewNotes" rows="3" placeholder="Add a note for the requester..."></textarea>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="leaveReviewCancelBtn">Close</button>
+            <button type="button" class="btn btn-danger" id="leaveRejectBtn">
+              <i class="fa-solid fa-xmark"></i>
+              <span>Reject</span>
+            </button>
+            <button type="button" class="btn btn-primary" id="leaveApproveBtn">
+              <i class="fa-solid fa-check"></i>
+              <span>Approve</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== CLAIM OWNER MODAL ====== -->
+  <div class="modal-overlay d-none" id="claimOwnerModal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Claim Owner Access</h3>
+        <button class="close-btn" id="closeClaimOwnerBtn" aria-label="Close modal">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="claim-explainer">
+          Owners have full control of this workspace, including the ability to
+          assign admins and manage every employee record. Enter the
+          <strong>workspace setup password</strong> to elevate your account to
+          owner. This password is configured by your administrator on the
+          server (the <code>OWNER_SETUP_PASSWORD</code> environment variable).
+        </p>
+        <form id="claimOwnerForm">
+          <div class="form-group">
+            <label for="claimOwnerPassword">Setup Password</label>
+            <input type="password" id="claimOwnerPassword" required autocomplete="off" placeholder="Enter setup password">
+          </div>
+          <div class="auth-error d-none" id="claimOwnerError"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" id="cancelClaimOwnerBtn">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="confirmClaimOwnerBtn">
+              <i class="fa-solid fa-key"></i>
+              <span>Become Owner</span>
+            </button>
           </div>
         </form>
       </div>

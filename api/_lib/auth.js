@@ -19,14 +19,16 @@ export async function verifyPassword(password, hash) {
   return bcrypt.compare(password, hash);
 }
 
-export function signToken(user) {
+export function signToken(user, options = {}) {
   if (!JWT_SECRET) {
     throw new Error('JWT_SECRET is not configured on the server.');
   }
+  // `remember: true` extends the lifetime to 30 days.
+  const expiresIn = options.remember ? '30d' : TOKEN_TTL;
   return jwt.sign(
-    { id: user.id, email: user.email, name: user.name },
+    { id: user.id, email: user.email, name: user.name, role: user.role || 'employee' },
     JWT_SECRET,
-    { expiresIn: TOKEN_TTL }
+    { expiresIn }
   );
 }
 
@@ -54,4 +56,33 @@ export function requireAuth(req, res) {
     return null;
   }
   return user;
+}
+
+// Role helpers — kept central so the rules are easy to audit.
+export const ROLES = {
+  OWNER: 'owner',
+  ADMIN: 'admin',
+  EMPLOYEE: 'employee'
+};
+
+export function isPrivileged(user) {
+  return !!user && (user.role === ROLES.OWNER || user.role === ROLES.ADMIN);
+}
+
+// Sends a 403 if the user is not privileged. Returns true when allowed.
+export function requirePrivileged(user, res) {
+  if (!isPrivileged(user)) {
+    res.status(403).json({ error: 'You do not have permission to perform this action.' });
+    return false;
+  }
+  return true;
+}
+
+// Sends a 403 if the user is not the owner. Returns true when allowed.
+export function requireOwner(user, res) {
+  if (!user || user.role !== ROLES.OWNER) {
+    res.status(403).json({ error: 'Only the workspace owner can perform this action.' });
+    return false;
+  }
+  return true;
 }

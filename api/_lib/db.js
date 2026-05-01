@@ -40,8 +40,15 @@ export async function ensureTables() {
       email TEXT UNIQUE NOT NULL,
       password_hash TEXT NOT NULL,
       name TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'employee',
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
+  `;
+
+  // Idempotent migration: ensure the `role` column exists on legacy installs.
+  await sql`
+    ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'employee'
   `;
 
   await sql`
@@ -64,6 +71,24 @@ export async function ensureTables() {
       emergency_phone TEXT,
       notes TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS leave_requests (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      employee_id TEXT REFERENCES employees(id) ON DELETE SET NULL,
+      leave_type TEXT NOT NULL DEFAULT 'Casual',
+      start_date DATE NOT NULL,
+      end_date DATE NOT NULL,
+      reason TEXT,
+      status TEXT NOT NULL DEFAULT 'Pending',
+      reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      review_notes TEXT,
+      reviewed_at TIMESTAMPTZ,
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
@@ -105,6 +130,38 @@ export function rowToEmployee(row) {
     emergencyName: row.emergency_name || '',
     emergencyPhone: row.emergency_phone || '',
     notes: row.notes || ''
+  };
+}
+
+// Map a leave_requests row (joined with users) to camelCase shape.
+export function rowToLeaveRequest(row) {
+  const dateStr = (d) => {
+    if (!d) return '';
+    if (d instanceof Date) return d.toISOString().split('T')[0];
+    return String(d).split('T')[0];
+  };
+  const tsStr = (d) => {
+    if (!d) return '';
+    if (d instanceof Date) return d.toISOString();
+    return String(d);
+  };
+  return {
+    id: String(row.id),
+    userId: row.user_id,
+    userName: row.user_name || '',
+    userEmail: row.user_email || '',
+    employeeId: row.employee_id || '',
+    leaveType: row.leave_type || 'Casual',
+    startDate: dateStr(row.start_date),
+    endDate: dateStr(row.end_date),
+    reason: row.reason || '',
+    status: row.status || 'Pending',
+    reviewedBy: row.reviewed_by || null,
+    reviewerName: row.reviewer_name || '',
+    reviewNotes: row.review_notes || '',
+    reviewedAt: tsStr(row.reviewed_at),
+    createdAt: tsStr(row.created_at),
+    updatedAt: tsStr(row.updated_at)
   };
 }
 

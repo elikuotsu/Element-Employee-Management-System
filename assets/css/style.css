@@ -1276,6 +1276,367 @@ select:focus {
 }
 
 /* ============================================================
+   AUTH: REMEMBER ME CHECKBOX
+   ============================================================ */
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  user-select: none;
+  margin: 0.25rem 0;
+}
+
+.checkbox-row input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* ============================================================
+   USER ROLE BADGE (topbar + menu)
+   ============================================================ */
+.user-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+
+.user-role-badge {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.user-role-badge.role-owner { color: var(--primary); }
+.user-role-badge.role-admin { color: #3b82f6; }
+
+.user-menu-role {
+  display: inline-block;
+  margin-top: 0.375rem;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ============================================================
+   SIDEBAR NAV BADGE (pending count)
+   ============================================================ */
+.sidebar-nav .nav-item {
+  position: relative;
+}
+
+.nav-badge {
+  margin-left: auto;
+  background-color: var(--primary);
+  color: white;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 9999px;
+  min-width: 18px;
+  text-align: center;
+  line-height: 1.2;
+}
+
+/* ============================================================
+   LEAVE REQUEST LIST
+   ============================================================ */
+.leave-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.leave-card {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  padding: 1rem 1.125rem;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.875rem;
+  align-items: center;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.leave-card:hover {
+  border-color: var(--primary);
+}
+
+.leave-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 0.8125rem;
+  color: white;
+}
+
+.leave-body { min-width: 0; }
+
+.leave-line-1 {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.25rem;
+  flex-wrap: wrap;
+}
+
+.leave-name {
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--text-main);
+}
+
+.leave-type-pill {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.leave-line-2 {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.875rem;
+}
+
+.leave-line-2 span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3125rem;
+}
+
+.leave-reason {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-top: 0.375rem;
+  white-space: pre-wrap;
+}
+
+.leave-review-note {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-top: 0.375rem;
+  font-style: italic;
+}
+
+.leave-actions {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.leave-status {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.1875rem 0.625rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.leave-status.status-Pending {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #d97706;
+}
+
+.leave-status.status-Approved {
+  background-color: var(--status-active-bg);
+  color: var(--status-active-text);
+}
+
+.leave-status.status-Rejected,
+.leave-status.status-Cancelled {
+  background-color: var(--status-inactive-bg);
+  color: var(--status-inactive-text);
+}
+
+.leave-summary {
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 0.5rem;
+  padding: 0.875rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.leave-summary strong {
+  color: var(--text-main);
+}
+
+@media (max-width: 600px) {
+  .leave-card {
+    grid-template-columns: auto 1fr;
+  }
+  .leave-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+}
+
+/* ============================================================
+   USERS / ROLES TABLE
+   ============================================================ */
+.users-banner {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  background-color: var(--primary-light);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8125rem;
+  margin-bottom: 1rem;
+}
+
+.users-banner i {
+  color: var(--primary);
+  margin-top: 2px;
+}
+
+.users-table-wrap {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.users-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+.users-table th {
+  text-align: left;
+  padding: 0.625rem 1rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  background-color: var(--bg-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.users-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-light);
+  vertical-align: middle;
+  color: var(--text-secondary);
+}
+
+.users-table tr:last-child td { border-bottom: none; }
+
+.users-table .user-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.users-table .user-cell .emp-avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 0.6875rem;
+}
+
+.role-pill {
+  display: inline-block;
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background-color: var(--bg-muted);
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.role-pill.role-owner {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  border-color: transparent;
+}
+
+.role-pill.role-admin {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border-color: transparent;
+}
+
+.role-select {
+  font-size: 0.75rem;
+  padding: 0.3125rem 1.75rem 0.3125rem 0.5rem;
+}
+
+@media (max-width: 600px) {
+  .users-table thead { display: none; }
+  .users-table, .users-table tbody, .users-table tr, .users-table td {
+    display: block;
+    width: 100%;
+  }
+  .users-table tr {
+    border-bottom: 1px solid var(--border-light);
+    padding: 0.5rem 0.25rem;
+  }
+  .users-table td {
+    padding: 0.25rem 0.5rem;
+    border-bottom: none;
+  }
+}
+
+/* ============================================================
+   CLAIM OWNER MODAL
+   ============================================================ */
+.claim-explainer {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin-bottom: 1rem;
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
+}
+
+.claim-explainer code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background-color: var(--bg-surface);
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.25rem;
+  border: 1px solid var(--border);
+  font-size: 0.75rem;
+}
+
+/* ============================================================
    PAGE LOADER
    ============================================================ */
 .page-loader {

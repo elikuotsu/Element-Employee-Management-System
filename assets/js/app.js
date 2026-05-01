@@ -34,9 +34,38 @@ if (themeToggleBtn) {
 
 initTheme();
 
+// ===== REMEMBERED EMAIL =====
+// We pre-fill the login email when the user previously checked "Remember me".
+// The token itself already lives in localStorage via window.elementAuth, but
+// the email key is separate so signing out doesn't clear it.
+const REMEMBER_EMAIL_KEY = 'element_remember_email';
+
+function getRememberedEmail() {
+  try { return localStorage.getItem(REMEMBER_EMAIL_KEY) || ''; } catch { return ''; }
+}
+function setRememberedEmail(email) {
+  try { localStorage.setItem(REMEMBER_EMAIL_KEY, email); } catch {}
+}
+function clearRememberedEmail() {
+  try { localStorage.removeItem(REMEMBER_EMAIL_KEY); } catch {}
+}
+
+// ===== ROLE HELPERS =====
+const ROLE = { OWNER: 'owner', ADMIN: 'admin', EMPLOYEE: 'employee' };
+let currentUser = null; // refreshed on every login + bootstrap
+
+function isPrivileged() {
+  return !!currentUser && (currentUser.role === ROLE.OWNER || currentUser.role === ROLE.ADMIN);
+}
+function isOwner() {
+  return !!currentUser && currentUser.role === ROLE.OWNER;
+}
+
 // ===== DATA MODEL =====
 // In-memory cache, refreshed from the API.
 let employees = [];
+let leaveRequests = [];
+let userAccounts = [];
 
 function normalizeEmployee(emp) {
   return {
@@ -70,11 +99,13 @@ const loginForm = document.getElementById('loginForm');
 const signupForm = document.getElementById('signupForm');
 const loginEmail = document.getElementById('loginEmail');
 const loginPassword = document.getElementById('loginPassword');
+const loginRemember = document.getElementById('loginRemember');
 const loginError = document.getElementById('loginError');
 const loginSubmitBtn = document.getElementById('loginSubmitBtn');
 const signupName = document.getElementById('signupName');
 const signupEmail = document.getElementById('signupEmail');
 const signupPassword = document.getElementById('signupPassword');
+const signupRemember = document.getElementById('signupRemember');
 const signupError = document.getElementById('signupError');
 const signupSubmitBtn = document.getElementById('signupSubmitBtn');
 const authTabs = document.querySelectorAll('.auth-tab');
@@ -84,9 +115,58 @@ const userChip = document.getElementById('userChip');
 const userMenu = document.getElementById('userMenu');
 const userAvatar = document.getElementById('userAvatar');
 const userName = document.getElementById('userName');
+const userRoleBadge = document.getElementById('userRoleBadge');
 const userMenuName = document.getElementById('userMenuName');
 const userMenuEmail = document.getElementById('userMenuEmail');
+const userMenuRole = document.getElementById('userMenuRole');
 const logoutBtn = document.getElementById('logoutBtn');
+
+// Sidebar role-gated elements
+const navLeaves = document.getElementById('nav-leaves');
+const navUsers = document.getElementById('nav-users');
+const leavesBadge = document.getElementById('leavesBadge');
+const requestLeaveSidebarBtn = document.getElementById('requestLeaveSidebarBtn');
+
+// Leave UI
+const leavesSection = document.getElementById('leaves');
+const leaveStatusFilter = document.getElementById('leaveStatusFilter');
+const leaveScopeFilter = document.getElementById('leaveScopeFilter');
+const leaveScopeWrap = document.getElementById('leaveScopeWrap');
+const leaveList = document.getElementById('leaveList');
+const leaveResultsCount = document.getElementById('leaveResultsCount');
+const newLeaveBtn = document.getElementById('newLeaveBtn');
+const leaveModal = document.getElementById('leaveModal');
+const leaveForm = document.getElementById('leaveForm');
+const leaveIdInput = document.getElementById('leaveId');
+const leaveTypeInput = document.getElementById('leaveType');
+const leaveStartInput = document.getElementById('leaveStart');
+const leaveEndInput = document.getElementById('leaveEnd');
+const leaveReasonInput = document.getElementById('leaveReason');
+const closeLeaveModalBtn = document.getElementById('closeLeaveModalBtn');
+const cancelLeaveBtn = document.getElementById('cancelLeaveBtn');
+
+const leaveReviewModal = document.getElementById('leaveReviewModal');
+const closeLeaveReviewBtn = document.getElementById('closeLeaveReviewBtn');
+const leaveReviewSummary = document.getElementById('leaveReviewSummary');
+const leaveReviewIdInput = document.getElementById('leaveReviewId');
+const leaveReviewNotes = document.getElementById('leaveReviewNotes');
+const leaveReviewCancelBtn = document.getElementById('leaveReviewCancelBtn');
+const leaveApproveBtn = document.getElementById('leaveApproveBtn');
+const leaveRejectBtn = document.getElementById('leaveRejectBtn');
+
+// Users section
+const usersSection = document.getElementById('users');
+const usersTableBody = document.getElementById('usersTableBody');
+
+// Claim Owner modal
+const claimOwnerBtn = document.getElementById('claimOwnerBtn');
+const claimOwnerModal = document.getElementById('claimOwnerModal');
+const claimOwnerForm = document.getElementById('claimOwnerForm');
+const claimOwnerPassword = document.getElementById('claimOwnerPassword');
+const claimOwnerError = document.getElementById('claimOwnerError');
+const closeClaimOwnerBtn = document.getElementById('closeClaimOwnerBtn');
+const cancelClaimOwnerBtn = document.getElementById('cancelClaimOwnerBtn');
+const confirmClaimOwnerBtn = document.getElementById('confirmClaimOwnerBtn');
 
 const navItems = document.querySelectorAll('.nav-item');
 const views = document.querySelectorAll('.view-section');
@@ -209,6 +289,17 @@ function showAuthScreen() {
   signupForm.reset();
   hideAuthError(loginError);
   hideAuthError(signupError);
+
+  // Pre-fill the remembered email so the user just types their password.
+  const remembered = getRememberedEmail();
+  if (remembered) {
+    loginEmail.value = remembered;
+    if (loginRemember) loginRemember.checked = true;
+    // Move focus straight to password since the email is already filled in.
+    setTimeout(() => loginPassword.focus(), 50);
+  } else {
+    setTimeout(() => loginEmail.focus(), 50);
+  }
 }
 
 function showApp() {
@@ -233,6 +324,29 @@ function setUserChip(user) {
   userName.textContent = user.name || user.email;
   userMenuName.textContent = user.name || 'User';
   userMenuEmail.textContent = user.email || '';
+  const role = (user.role || 'employee').toLowerCase();
+  if (userRoleBadge) {
+    userRoleBadge.textContent = role;
+    userRoleBadge.classList.remove('role-owner', 'role-admin', 'role-employee');
+    userRoleBadge.classList.add('role-' + role);
+  }
+  if (userMenuRole) userMenuRole.textContent = role;
+}
+
+// Show/hide things based on the current user's role.
+function applyRoleVisibility() {
+  const privileged = isPrivileged();
+  // Sidebar: "Add employee" stays admin-only.
+  if (addEmployeeBtn) addEmployeeBtn.classList.toggle('d-none', !privileged);
+  // Sidebar: "User Roles" only visible to admin/owner.
+  if (navUsers) navUsers.classList.toggle('d-none', !privileged);
+  // Directory CSV import + edit/delete buttons stay visible (admins see them);
+  // we still gate the underlying actions server-side.
+  if (importCsvBtn) importCsvBtn.classList.toggle('d-none', !privileged);
+  // Leave scope filter (everyone vs mine) only matters for privileged viewers.
+  if (leaveScopeWrap) leaveScopeWrap.classList.toggle('d-none', !privileged);
+  // Once a user is owner there's nothing for the claim flow to do.
+  if (claimOwnerBtn) claimOwnerBtn.classList.toggle('d-none', isOwner());
 }
 
 // Switch between login and signup tabs
@@ -262,13 +376,14 @@ loginForm.addEventListener('submit', async (e) => {
   hideAuthError(loginError);
   loginSubmitBtn.disabled = true;
 
+  const email = loginEmail.value.trim();
+  const remember = !!(loginRemember && loginRemember.checked);
+
   try {
-    const { user, token } = await api.login(
-      loginEmail.value.trim(),
-      loginPassword.value
-    );
+    const { user, token } = await api.login(email, loginPassword.value, remember);
     auth.setToken(token);
     auth.setUser(user);
+    if (remember) setRememberedEmail(email); else clearRememberedEmail();
     await onLoginSuccess(user);
   } catch (err) {
     showAuthError(loginError, err.message || 'Sign in failed.');
@@ -283,14 +398,19 @@ signupForm.addEventListener('submit', async (e) => {
   hideAuthError(signupError);
   signupSubmitBtn.disabled = true;
 
+  const email = signupEmail.value.trim();
+  const remember = !!(signupRemember && signupRemember.checked);
+
   try {
     const { user, token } = await api.signup(
-      signupEmail.value.trim(),
+      email,
       signupPassword.value,
-      signupName.value.trim()
+      signupName.value.trim(),
+      remember
     );
     auth.setToken(token);
     auth.setUser(user);
+    if (remember) setRememberedEmail(email); else clearRememberedEmail();
     showToast(`Welcome, ${user.name}!`);
     await onLoginSuccess(user);
   } catch (err) {
@@ -301,9 +421,12 @@ signupForm.addEventListener('submit', async (e) => {
 });
 
 async function onLoginSuccess(user) {
+  currentUser = user;
   setUserChip(user);
+  applyRoleVisibility();
   showApp();
   await loadEmployees();
+  await loadLeaves();
   switchView('dashboard');
 }
 
@@ -312,7 +435,12 @@ logoutBtn.addEventListener('click', (e) => {
   // Prevent the click from bubbling to userChip (which would re-toggle the menu open)
   e.stopPropagation();
   auth.clear();
+  // Note: we deliberately keep the remembered email so the next login is
+  // a one-step affair (password only). Sign out only clears the session.
+  currentUser = null;
   employees = [];
+  leaveRequests = [];
+  userAccounts = [];
   userMenu.classList.add('d-none');
   showAuthScreen();
 });
@@ -366,6 +494,21 @@ function switchView(targetId) {
     pageTitle.textContent = 'Employee Directory';
     pageSubtitle.textContent = 'View and filter all staff members.';
     renderDirectory();
+  } else if (targetId === 'leaves') {
+    pageTitle.textContent = 'Leave Requests';
+    pageSubtitle.textContent = isPrivileged()
+      ? 'Review and process pending leave requests from staff.'
+      : 'Submit and track your own leave requests.';
+    renderLeaves();
+  } else if (targetId === 'users') {
+    if (!isPrivileged()) {
+      // Hard guard so an employee can't reach this view by URL hash.
+      switchView('dashboard');
+      return;
+    }
+    pageTitle.textContent = 'User Roles';
+    pageSubtitle.textContent = 'Manage who is an owner, admin, or employee.';
+    loadUsers();
   }
 
   navItems.forEach(n => {
@@ -928,6 +1071,431 @@ function parseCSVRow(row) {
 }
 
 // ============================================================
+//  LEAVE REQUESTS
+// ============================================================
+async function loadLeaves() {
+  try {
+    const { leaves } = await api.listLeaves();
+    leaveRequests = Array.isArray(leaves) ? leaves : [];
+    updateLeavesBadge();
+    if (leavesSection && leavesSection.classList.contains('active')) {
+      renderLeaves();
+    }
+  } catch (err) {
+    if (err.status === 401) { showAuthScreen(); return; }
+    showToast('Failed to load leave requests: ' + err.message, 'error');
+  }
+}
+
+function updateLeavesBadge() {
+  if (!leavesBadge) return;
+  // For admins/owners the badge counts pending org-wide. For employees, it
+  // counts their own pending requests so they remember what's outstanding.
+  const pending = leaveRequests.filter((l) => l.status === 'Pending').length;
+  if (pending > 0) {
+    leavesBadge.textContent = String(pending);
+    leavesBadge.classList.remove('d-none');
+  } else {
+    leavesBadge.classList.add('d-none');
+  }
+}
+
+function getFilteredLeaves() {
+  const status = leaveStatusFilter ? leaveStatusFilter.value : 'all';
+  const scope = (isPrivileged() && leaveScopeFilter) ? leaveScopeFilter.value : 'all';
+  return leaveRequests.filter((l) => {
+    if (status !== 'all' && l.status !== status) return false;
+    if (scope === 'mine' && currentUser && Number(l.userId) !== Number(currentUser.id)) return false;
+    return true;
+  });
+}
+
+function formatDateRange(start, end) {
+  if (!start && !end) return '—';
+  if (start === end) return formatDate(start);
+  return `${formatDate(start)} → ${formatDate(end)}`;
+}
+
+function leaveDayCount(start, end) {
+  if (!start || !end) return 0;
+  const s = new Date(start);
+  const e = new Date(end);
+  if (isNaN(s) || isNaN(e)) return 0;
+  return Math.max(1, Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1);
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[c]));
+}
+
+function renderLeaves() {
+  if (!leaveList) return;
+  const filtered = getFilteredLeaves();
+  if (leaveResultsCount) {
+    leaveResultsCount.textContent = `${filtered.length} request${filtered.length !== 1 ? 's' : ''}`;
+  }
+
+  if (filtered.length === 0) {
+    leaveList.innerHTML = `
+      <div class="empty-state">
+        <i class="fa-solid fa-plane-departure"></i>
+        <p>No leave requests match the current filters.</p>
+      </div>`;
+    return;
+  }
+
+  const privileged = isPrivileged();
+  leaveList.innerHTML = filtered.map((l) => {
+    const days = leaveDayCount(l.startDate, l.endDate);
+    const isMine = currentUser && Number(l.userId) === Number(currentUser.id);
+    const canReview = privileged && l.status === 'Pending';
+    const canCancel = isMine && l.status === 'Pending';
+    const canDelete = privileged;
+    const reviewer = l.reviewerName ? `Reviewed by ${escapeHtml(l.reviewerName)}` : '';
+
+    return `
+      <div class="leave-card" data-leave-id="${l.id}">
+        <div class="leave-avatar" style="background: ${avatarGradient(l.userName || l.userEmail || '?')}">
+          ${getInitials(l.userName || l.userEmail || '?')}
+        </div>
+        <div class="leave-body">
+          <div class="leave-line-1">
+            <span class="leave-name">${escapeHtml(l.userName || l.userEmail || 'Unknown')}</span>
+            <span class="leave-type-pill">${escapeHtml(l.leaveType)}</span>
+          </div>
+          <div class="leave-line-2">
+            <span><i class="fa-regular fa-calendar"></i> ${formatDateRange(l.startDate, l.endDate)}</span>
+            <span><i class="fa-solid fa-hourglass-half"></i> ${days} day${days !== 1 ? 's' : ''}</span>
+            ${reviewer ? `<span><i class="fa-solid fa-user-check"></i> ${reviewer}</span>` : ''}
+          </div>
+          ${l.reason ? `<div class="leave-reason">${escapeHtml(l.reason)}</div>` : ''}
+          ${l.reviewNotes ? `<div class="leave-review-note">Note: ${escapeHtml(l.reviewNotes)}</div>` : ''}
+        </div>
+        <div class="leave-actions">
+          <span class="leave-status status-${l.status}">${l.status}</span>
+          ${canReview ? `
+            <button class="btn btn-secondary btn-sm leave-review-btn" data-id="${l.id}">
+              <i class="fa-solid fa-gavel"></i><span>Review</span>
+            </button>` : ''}
+          ${canCancel ? `
+            <button class="btn btn-secondary btn-sm leave-cancel-btn" data-id="${l.id}">
+              <i class="fa-solid fa-ban"></i><span>Cancel</span>
+            </button>` : ''}
+          ${canDelete ? `
+            <button class="icon-btn leave-delete-btn" data-id="${l.id}" title="Delete">
+              <i class="fa-solid fa-trash"></i>
+            </button>` : ''}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Wire up per-card actions.
+  leaveList.querySelectorAll('.leave-review-btn').forEach((btn) => {
+    btn.addEventListener('click', () => openLeaveReview(btn.getAttribute('data-id')));
+  });
+  leaveList.querySelectorAll('.leave-cancel-btn').forEach((btn) => {
+    btn.addEventListener('click', () => updateLeaveStatus(btn.getAttribute('data-id'), 'Cancelled'));
+  });
+  leaveList.querySelectorAll('.leave-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', () => deleteLeave(btn.getAttribute('data-id')));
+  });
+}
+
+function openLeaveModal() {
+  if (!leaveModal) return;
+  leaveForm.reset();
+  leaveIdInput.value = '';
+  const today = new Date().toISOString().split('T')[0];
+  leaveStartInput.value = today;
+  leaveEndInput.value = today;
+  leaveModal.classList.remove('d-none');
+}
+function closeLeaveModal() {
+  if (leaveModal) leaveModal.classList.add('d-none');
+}
+
+if (newLeaveBtn) newLeaveBtn.addEventListener('click', openLeaveModal);
+if (requestLeaveSidebarBtn) requestLeaveSidebarBtn.addEventListener('click', openLeaveModal);
+if (closeLeaveModalBtn) closeLeaveModalBtn.addEventListener('click', closeLeaveModal);
+if (cancelLeaveBtn) cancelLeaveBtn.addEventListener('click', closeLeaveModal);
+if (leaveModal) {
+  leaveModal.addEventListener('click', (e) => { if (e.target === leaveModal) closeLeaveModal(); });
+}
+
+if (leaveForm) {
+  leaveForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const submitBtn = leaveForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      const payload = {
+        leaveType: leaveTypeInput.value,
+        startDate: leaveStartInput.value,
+        endDate: leaveEndInput.value,
+        reason: leaveReasonInput.value.trim()
+      };
+      const { leave } = await api.createLeave(payload);
+      leaveRequests.unshift(leave);
+      updateLeavesBadge();
+      closeLeaveModal();
+      showToast('Leave request submitted.');
+      if (leavesSection && leavesSection.classList.contains('active')) renderLeaves();
+    } catch (err) {
+      showToast('Failed to submit leave: ' + err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}
+
+if (leaveStatusFilter) leaveStatusFilter.addEventListener('change', renderLeaves);
+if (leaveScopeFilter) leaveScopeFilter.addEventListener('change', renderLeaves);
+
+function openLeaveReview(id) {
+  const leave = leaveRequests.find((l) => String(l.id) === String(id));
+  if (!leave) return;
+  leaveReviewIdInput.value = leave.id;
+  leaveReviewNotes.value = '';
+  const days = leaveDayCount(leave.startDate, leave.endDate);
+  leaveReviewSummary.innerHTML = `
+    <div><strong>${escapeHtml(leave.userName || leave.userEmail || 'Unknown')}</strong> · ${escapeHtml(leave.leaveType)}</div>
+    <div>${formatDateRange(leave.startDate, leave.endDate)} · ${days} day${days !== 1 ? 's' : ''}</div>
+    ${leave.reason ? `<div style="margin-top:0.375rem">${escapeHtml(leave.reason)}</div>` : ''}
+  `;
+  leaveReviewModal.classList.remove('d-none');
+}
+function closeLeaveReview() {
+  if (leaveReviewModal) leaveReviewModal.classList.add('d-none');
+}
+if (closeLeaveReviewBtn) closeLeaveReviewBtn.addEventListener('click', closeLeaveReview);
+if (leaveReviewCancelBtn) leaveReviewCancelBtn.addEventListener('click', closeLeaveReview);
+if (leaveReviewModal) {
+  leaveReviewModal.addEventListener('click', (e) => { if (e.target === leaveReviewModal) closeLeaveReview(); });
+}
+
+async function applyLeaveDecision(status) {
+  const id = leaveReviewIdInput.value;
+  if (!id) return;
+  const reviewNotes = leaveReviewNotes.value.trim();
+  leaveApproveBtn.disabled = true;
+  leaveRejectBtn.disabled = true;
+  try {
+    const { leave } = await api.updateLeave(id, { status, reviewNotes });
+    const idx = leaveRequests.findIndex((l) => String(l.id) === String(id));
+    if (idx !== -1) leaveRequests[idx] = leave;
+    updateLeavesBadge();
+    closeLeaveReview();
+    showToast(`Request ${status.toLowerCase()}.`, status === 'Rejected' ? 'error' : 'success');
+    renderLeaves();
+  } catch (err) {
+    showToast('Failed to update request: ' + err.message, 'error');
+  } finally {
+    leaveApproveBtn.disabled = false;
+    leaveRejectBtn.disabled = false;
+  }
+}
+if (leaveApproveBtn) leaveApproveBtn.addEventListener('click', () => applyLeaveDecision('Approved'));
+if (leaveRejectBtn) leaveRejectBtn.addEventListener('click', () => applyLeaveDecision('Rejected'));
+
+async function updateLeaveStatus(id, status) {
+  if (!confirm(`Set this request to ${status}?`)) return;
+  try {
+    const { leave } = await api.updateLeave(id, { status });
+    const idx = leaveRequests.findIndex((l) => String(l.id) === String(id));
+    if (idx !== -1) leaveRequests[idx] = leave;
+    updateLeavesBadge();
+    renderLeaves();
+    showToast(`Request ${status.toLowerCase()}.`);
+  } catch (err) {
+    showToast('Failed to update request: ' + err.message, 'error');
+  }
+}
+
+async function deleteLeave(id) {
+  if (!confirm('Delete this leave request? This cannot be undone.')) return;
+  try {
+    await api.deleteLeave(id);
+    leaveRequests = leaveRequests.filter((l) => String(l.id) !== String(id));
+    updateLeavesBadge();
+    renderLeaves();
+    showToast('Request deleted.');
+  } catch (err) {
+    showToast('Failed to delete: ' + err.message, 'error');
+  }
+}
+
+// ============================================================
+//  USERS / ROLES MANAGEMENT
+// ============================================================
+async function loadUsers() {
+  if (!isPrivileged() || !usersTableBody) return;
+  try {
+    const { users } = await api.listUsers();
+    userAccounts = Array.isArray(users) ? users : [];
+    renderUsers();
+  } catch (err) {
+    if (err.status === 401) { showAuthScreen(); return; }
+    showToast('Failed to load users: ' + err.message, 'error');
+  }
+}
+
+function renderUsers() {
+  if (!usersTableBody) return;
+  if (userAccounts.length === 0) {
+    usersTableBody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:1.25rem">No users yet.</td></tr>`;
+    return;
+  }
+
+  usersTableBody.innerHTML = userAccounts.map((u) => {
+    const role = (u.role || 'employee').toLowerCase();
+    const isMe = currentUser && Number(u.id) === Number(currentUser.id);
+    const targetIsOwner = role === 'owner';
+
+    // What roles can the current user assign to this row?
+    let options = [];
+    if (isOwner()) {
+      options = ['owner', 'admin', 'employee'];
+    } else if (isPrivileged() && !targetIsOwner) {
+      options = ['admin', 'employee'];
+    }
+    const canEdit = !isMe && options.length > 0;
+
+    const dropdown = canEdit ? `
+      <select class="role-select" data-user-id="${u.id}">
+        ${options.map((r) => `<option value="${r}" ${r === role ? 'selected' : ''}>${r}</option>`).join('')}
+      </select>` : `<span class="role-pill role-${role}">${role}</span>`;
+
+    return `
+      <tr>
+        <td>
+          <div class="user-cell">
+            <div class="emp-avatar" style="background: ${avatarGradient(u.name || u.email)}">
+              ${getInitials(u.name || u.email)}
+            </div>
+            <div>${escapeHtml(u.name || '')}${isMe ? ' <span class="text-muted">(you)</span>' : ''}</div>
+          </div>
+        </td>
+        <td style="word-break:break-all">${escapeHtml(u.email || '')}</td>
+        <td>${dropdown}</td>
+        <td class="text-muted">${u.createdAt ? formatDate(u.createdAt) : '—'}</td>
+        <td></td>
+      </tr>
+    `;
+  }).join('');
+
+  usersTableBody.querySelectorAll('select.role-select').forEach((sel) => {
+    sel.addEventListener('change', async (e) => {
+      const userId = e.currentTarget.getAttribute('data-user-id');
+      const newRole = e.currentTarget.value;
+      const target = userAccounts.find((u) => String(u.id) === String(userId));
+      if (!target) return;
+      const previousRole = target.role;
+
+      const confirmMsg = newRole === 'owner'
+        ? `Promote ${target.name || target.email} to OWNER? This grants full control.`
+        : `Set ${target.name || target.email}'s role to ${newRole}?`;
+      if (!confirm(confirmMsg)) {
+        e.currentTarget.value = previousRole;
+        return;
+      }
+
+      try {
+        const { user } = await api.updateUserRole(userId, newRole);
+        target.role = user.role;
+        showToast(`${user.name || user.email} is now ${user.role}.`);
+        // If we just transferred ownership, refresh self.
+        if (newRole === 'owner' && currentUser && Number(currentUser.id) !== Number(userId)) {
+          await refreshCurrentUser();
+        }
+        renderUsers();
+      } catch (err) {
+        showToast('Could not update role: ' + err.message, 'error');
+        e.currentTarget.value = previousRole;
+      }
+    });
+  });
+}
+
+// ============================================================
+//  CLAIM OWNER ACCESS
+// ============================================================
+function openClaimOwnerModal() {
+  if (!claimOwnerModal) return;
+  if (claimOwnerForm) claimOwnerForm.reset();
+  hideAuthError(claimOwnerError);
+  // Close the user dropdown if it was open.
+  if (userMenu) userMenu.classList.add('d-none');
+  claimOwnerModal.classList.remove('d-none');
+  setTimeout(() => claimOwnerPassword && claimOwnerPassword.focus(), 50);
+}
+function closeClaimOwnerModal() {
+  if (claimOwnerModal) claimOwnerModal.classList.add('d-none');
+  if (claimOwnerForm) claimOwnerForm.reset();
+  hideAuthError(claimOwnerError);
+}
+
+if (claimOwnerBtn) {
+  claimOwnerBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openClaimOwnerModal();
+  });
+}
+if (closeClaimOwnerBtn) closeClaimOwnerBtn.addEventListener('click', closeClaimOwnerModal);
+if (cancelClaimOwnerBtn) cancelClaimOwnerBtn.addEventListener('click', closeClaimOwnerModal);
+if (claimOwnerModal) {
+  claimOwnerModal.addEventListener('click', (e) => {
+    if (e.target === claimOwnerModal) closeClaimOwnerModal();
+  });
+}
+
+if (claimOwnerForm) {
+  claimOwnerForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    hideAuthError(claimOwnerError);
+    const pwd = claimOwnerPassword.value;
+    if (!pwd) {
+      showAuthError(claimOwnerError, 'Setup password is required.');
+      return;
+    }
+    confirmClaimOwnerBtn.disabled = true;
+    try {
+      const { user, token } = await api.claimOwner(pwd);
+      // Swap in the fresh token + user so the role takes effect immediately.
+      if (token) auth.setToken(token);
+      currentUser = user;
+      auth.setUser(user);
+      setUserChip(user);
+      applyRoleVisibility();
+      closeClaimOwnerModal();
+      showToast('You are now the workspace owner.');
+      // Refresh the users list if the page is currently open.
+      if (usersSection && usersSection.classList.contains('active')) {
+        await loadUsers();
+      }
+    } catch (err) {
+      showAuthError(claimOwnerError, err.message || 'Could not claim ownership.');
+    } finally {
+      confirmClaimOwnerBtn.disabled = false;
+    }
+  });
+}
+
+async function refreshCurrentUser() {
+  try {
+    const { user } = await api.me();
+    currentUser = user;
+    auth.setUser(user);
+    setUserChip(user);
+    applyRoleVisibility();
+  } catch {
+    // Non-fatal. The next request that needs auth will fail and bounce to login.
+  }
+}
+
+// ============================================================
 //  BOOTSTRAP — auth check, then either show app or auth screen
 // ============================================================
 (async function bootstrap() {
@@ -937,10 +1505,13 @@ function parseCSVRow(row) {
       // Verify the stored token is still valid
       try {
         const { user } = await api.me();
+        currentUser = user;
         auth.setUser(user);
         setUserChip(user);
+        applyRoleVisibility();
         showApp();
         await loadEmployees();
+        await loadLeaves();
         switchView('dashboard');
       } catch (err) {
         // Token expired or server unreachable — fall back to auth screen

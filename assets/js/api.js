@@ -65,20 +65,26 @@
 
   const api = {
     // Auth
-    signup(email, password, name) {
+    signup(email, password, name, remember = false) {
       return request('/auth/signup', {
         method: 'POST',
-        body: JSON.stringify({ email, password, name })
+        body: JSON.stringify({ email, password, name, remember })
       });
     },
-    login(email, password) {
+    login(email, password, remember = false) {
       return request('/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email, password, remember })
       });
     },
     me() {
       return request('/auth/me', { method: 'GET' });
+    },
+    claimOwner(password) {
+      return request('/auth/claim-owner', {
+        method: 'POST',
+        body: JSON.stringify({ password })
+      });
     },
 
     // Employees
@@ -99,6 +105,39 @@
     },
     deleteEmployee(id) {
       return request('/employees/' + encodeURIComponent(id), {
+        method: 'DELETE'
+      });
+    },
+
+    // Users (admin/owner)
+    listUsers() {
+      return request('/users', { method: 'GET' });
+    },
+    updateUserRole(id, role) {
+      return request('/users/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: JSON.stringify({ role })
+      });
+    },
+
+    // Leave requests
+    listLeaves() {
+      return request('/leaves', { method: 'GET' });
+    },
+    createLeave(data) {
+      return request('/leaves', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+    },
+    updateLeave(id, data) {
+      return request('/leaves/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: JSON.stringify(data)
+      });
+    },
+    deleteLeave(id) {
+      return request('/leaves/' + encodeURIComponent(id), {
         method: 'DELETE'
       });
     }

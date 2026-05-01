@@ -8,14 +8,14 @@ export default async function handler(req, res) {
   try {
     await ensureTables();
 
-    const { email, password } = getBody(req);
+    const { email, password, remember } = getBody(req);
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
     const normalizedEmail = String(email).toLowerCase().trim();
     const result = await sql`
-      SELECT id, email, name, password_hash FROM users WHERE email = ${normalizedEmail}
+      SELECT id, email, name, role, password_hash FROM users WHERE email = ${normalizedEmail}
     `;
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid email or password.' });
@@ -27,9 +27,9 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
-    const token = signToken(user);
+    const token = signToken(user, { remember: !!remember });
     return res.status(200).json({
-      user: { id: user.id, email: user.email, name: user.name },
+      user: { id: user.id, email: user.email, name: user.name, role: user.role },
       token
     });
   } catch (err) {
