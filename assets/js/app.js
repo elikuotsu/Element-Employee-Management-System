@@ -1,7 +1,10 @@
 // ============================================================
 //  ELEMENT Nagaland — Employee Management System
-//  Module 1: Enhanced Directory & Profiles
+//  Backend-powered (Vercel Postgres + JWT auth)
 // ============================================================
+
+const auth = window.elementAuth;
+const api = window.elementApi;
 
 // ===== THEME MANAGEMENT =====
 const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -31,10 +34,10 @@ if (themeToggleBtn) {
 
 initTheme();
 
-// ===== DATA MODEL & STORAGE =====
-const STORAGE_KEY = 'element_nagaland_employees';
+// ===== DATA MODEL =====
+// In-memory cache, refreshed from the API.
+let employees = [];
 
-// Ensure backward compat: add default values for new fields if they're missing
 function normalizeEmployee(emp) {
   return {
     id: emp.id || Date.now().toString(),
@@ -57,19 +60,34 @@ function normalizeEmployee(emp) {
   };
 }
 
-function getEmployees() {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (!data) return [];
-  return JSON.parse(data).map(normalizeEmployee);
-}
-
-function saveEmployees(emps) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(emps));
-}
-
-let employees = getEmployees();
-
 // ===== DOM REFERENCES =====
+const authScreen = document.getElementById('authScreen');
+const appContainer = document.getElementById('appContainer');
+const pageLoader = document.getElementById('pageLoader');
+
+// Auth UI
+const loginForm = document.getElementById('loginForm');
+const signupForm = document.getElementById('signupForm');
+const loginEmail = document.getElementById('loginEmail');
+const loginPassword = document.getElementById('loginPassword');
+const loginError = document.getElementById('loginError');
+const loginSubmitBtn = document.getElementById('loginSubmitBtn');
+const signupName = document.getElementById('signupName');
+const signupEmail = document.getElementById('signupEmail');
+const signupPassword = document.getElementById('signupPassword');
+const signupError = document.getElementById('signupError');
+const signupSubmitBtn = document.getElementById('signupSubmitBtn');
+const authTabs = document.querySelectorAll('.auth-tab');
+
+// User chip
+const userChip = document.getElementById('userChip');
+const userMenu = document.getElementById('userMenu');
+const userAvatar = document.getElementById('userAvatar');
+const userName = document.getElementById('userName');
+const userMenuName = document.getElementById('userMenuName');
+const userMenuEmail = document.getElementById('userMenuEmail');
+const logoutBtn = document.getElementById('logoutBtn');
+
 const navItems = document.querySelectorAll('.nav-item');
 const views = document.querySelectorAll('.view-section');
 const pageTitle = document.getElementById('pageTitle');
@@ -147,6 +165,7 @@ function showToast(message, type = 'success') {
 
 // ===== HELPERS =====
 function getInitials(name) {
+  if (!name) return '?';
   return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 }
 
@@ -159,7 +178,7 @@ function nameToHue(name) {
 }
 
 function avatarGradient(name) {
-  const hue = nameToHue(name);
+  const hue = nameToHue(name || '?');
   return `linear-gradient(135deg, hsl(${hue}, 55%, 45%), hsl(${(hue + 35) % 360}, 50%, 40%))`;
 }
 
@@ -174,6 +193,157 @@ function getManagerName(managerId) {
   if (!managerId) return '—';
   const mgr = employees.find(e => e.id === managerId);
   return mgr ? mgr.name : '—';
+}
+
+function showLoader(show) {
+  if (!pageLoader) return;
+  pageLoader.classList.toggle('d-none', !show);
+}
+
+// ===== AUTH FLOW =====
+function showAuthScreen() {
+  authScreen.classList.remove('d-none');
+  appContainer.classList.add('d-none');
+  // Reset forms
+  loginForm.reset();
+  signupForm.reset();
+  hideAuthError(loginError);
+  hideAuthError(signupError);
+}
+
+function showApp() {
+  authScreen.classList.add('d-none');
+  appContainer.classList.remove('d-none');
+}
+
+function showAuthError(el, message) {
+  el.textContent = message;
+  el.classList.remove('d-none');
+}
+
+function hideAuthError(el) {
+  el.textContent = '';
+  el.classList.add('d-none');
+}
+
+function setUserChip(user) {
+  if (!user) return;
+  userAvatar.textContent = getInitials(user.name || user.email);
+  userAvatar.style.background = avatarGradient(user.name || user.email);
+  userName.textContent = user.name || user.email;
+  userMenuName.textContent = user.name || 'User';
+  userMenuEmail.textContent = user.email || '';
+}
+
+// Switch between login and signup tabs
+authTabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const target = tab.getAttribute('data-auth-tab');
+    authTabs.forEach(t => t.classList.toggle('active', t === tab));
+    if (target === 'login') {
+      loginForm.classList.remove('d-none');
+      loginForm.classList.add('active');
+      signupForm.classList.add('d-none');
+      signupForm.classList.remove('active');
+    } else {
+      signupForm.classList.remove('d-none');
+      signupForm.classList.add('active');
+      loginForm.classList.add('d-none');
+      loginForm.classList.remove('active');
+    }
+    hideAuthError(loginError);
+    hideAuthError(signupError);
+  });
+});
+
+// Login submit
+loginForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideAuthError(loginError);
+  loginSubmitBtn.disabled = true;
+
+  try {
+    const { user, token } = await api.login(
+      loginEmail.value.trim(),
+      loginPassword.value
+    );
+    auth.setToken(token);
+    auth.setUser(user);
+    await onLoginSuccess(user);
+  } catch (err) {
+    showAuthError(loginError, err.message || 'Sign in failed.');
+  } finally {
+    loginSubmitBtn.disabled = false;
+  }
+});
+
+// Signup submit
+signupForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  hideAuthError(signupError);
+  signupSubmitBtn.disabled = true;
+
+  try {
+    const { user, token } = await api.signup(
+      signupEmail.value.trim(),
+      signupPassword.value,
+      signupName.value.trim()
+    );
+    auth.setToken(token);
+    auth.setUser(user);
+    showToast(`Welcome, ${user.name}!`);
+    await onLoginSuccess(user);
+  } catch (err) {
+    showAuthError(signupError, err.message || 'Could not create account.');
+  } finally {
+    signupSubmitBtn.disabled = false;
+  }
+});
+
+async function onLoginSuccess(user) {
+  setUserChip(user);
+  showApp();
+  await loadEmployees();
+  switchView('dashboard');
+}
+
+// Logout
+logoutBtn.addEventListener('click', (e) => {
+  // Prevent the click from bubbling to userChip (which would re-toggle the menu open)
+  e.stopPropagation();
+  auth.clear();
+  employees = [];
+  userMenu.classList.add('d-none');
+  showAuthScreen();
+});
+
+// Toggle user menu
+userChip.addEventListener('click', (e) => {
+  e.stopPropagation();
+  userMenu.classList.toggle('d-none');
+});
+
+// Close user menu when clicking outside
+document.addEventListener('click', (e) => {
+  if (!userChip.contains(e.target)) {
+    userMenu.classList.add('d-none');
+  }
+});
+
+// ===== DATA LOADING =====
+async function loadEmployees() {
+  try {
+    const { employees: list } = await api.listEmployees();
+    employees = (list || []).map(normalizeEmployee);
+    updateAllViews();
+  } catch (err) {
+    if (err.status === 401) {
+      // Token expired or invalid
+      showAuthScreen();
+      return;
+    }
+    showToast('Failed to load employees: ' + err.message, 'error');
+  }
 }
 
 // ===== SIDEBAR TOGGLE (MOBILE) =====
@@ -197,9 +367,7 @@ function switchView(targetId) {
     pageSubtitle.textContent = 'View and filter all staff members.';
     renderDirectory();
   }
-  // employeeDetail title is set when opening
 
-  // Update nav active state
   navItems.forEach(n => {
     const navTarget = n.getAttribute('data-target');
     n.classList.toggle('active', navTarget === targetId);
@@ -270,12 +438,11 @@ document.addEventListener('keydown', (e) => {
 });
 
 // ===== FORM SUBMIT =====
-employeeForm.addEventListener('submit', (e) => {
+employeeForm.addEventListener('submit', async (e) => {
   e.preventDefault();
 
   const idValue = empIdInput.value;
-  const employeeData = normalizeEmployee({
-    id: idValue || Date.now().toString(),
+  const employeeData = {
     name: empNameInput.value.trim(),
     role: empRoleInput.value.trim(),
     department: empDeptInput.value,
@@ -292,24 +459,33 @@ employeeForm.addEventListener('submit', (e) => {
     emergencyName: empEmergencyNameInput.value.trim(),
     emergencyPhone: empEmergencyPhoneInput.value.trim(),
     notes: empNotesInput.value.trim()
-  });
+  };
 
-  if (idValue) {
-    const index = employees.findIndex(emp => emp.id === idValue);
-    if (index !== -1) employees[index] = employeeData;
-    showToast(`${employeeData.name} updated successfully.`);
-  } else {
-    employees.push(employeeData);
-    showToast(`${employeeData.name} added to the team.`);
-  }
+  const submitBtn = employeeForm.querySelector('button[type="submit"]');
+  submitBtn.disabled = true;
 
-  saveEmployees(employees);
-  closeModal();
-  updateAllViews();
+  try {
+    if (idValue) {
+      const { employee } = await api.updateEmployee(idValue, employeeData);
+      const idx = employees.findIndex(em => em.id === idValue);
+      if (idx !== -1) employees[idx] = normalizeEmployee(employee);
+      showToast(`${employee.name} updated successfully.`);
+    } else {
+      const { employee } = await api.createEmployee(employeeData);
+      employees.unshift(normalizeEmployee(employee));
+      showToast(`${employee.name} added to the team.`);
+    }
 
-  // If detail view is open for this employee, refresh it
-  if (currentDetailId === idValue) {
-    showEmployeeDetail(idValue);
+    closeModal();
+    updateAllViews();
+
+    if (currentDetailId === idValue) {
+      showEmployeeDetail(idValue);
+    }
+  } catch (err) {
+    showToast('Failed to save: ' + err.message, 'error');
+  } finally {
+    submitBtn.disabled = false;
   }
 });
 
@@ -357,10 +533,8 @@ function createEmployeeCard(emp) {
 }
 
 function attachCardEvents(container) {
-  // Click card to open detail view
   container.querySelectorAll('.emp-card').forEach(card => {
     card.addEventListener('click', (e) => {
-      // Don't open detail if clicking action buttons
       if (e.target.closest('.emp-actions')) return;
       const id = card.getAttribute('data-emp-id');
       showEmployeeDetail(id);
@@ -377,15 +551,20 @@ function attachCardEvents(container) {
   });
 
   container.querySelectorAll('.delete-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
+    btn.addEventListener('click', async (e) => {
       e.stopPropagation();
       const id = e.currentTarget.getAttribute('data-id');
       const emp = employees.find(em => em.id === id);
-      if (emp && confirm(`Are you sure you want to remove ${emp.name}?`)) {
+      if (!emp) return;
+      if (!confirm(`Are you sure you want to remove ${emp.name}?`)) return;
+
+      try {
+        await api.deleteEmployee(id);
         employees = employees.filter(em => em.id !== id);
-        saveEmployees(employees);
         showToast(`${emp.name} removed.`, 'error');
         updateAllViews();
+      } catch (err) {
+        showToast('Failed to delete: ' + err.message, 'error');
       }
     });
   });
@@ -395,7 +574,7 @@ function attachCardEvents(container) {
 function updateDashboard() {
   statTotal.textContent = employees.length;
   statActive.textContent = employees.filter(e => e.status === 'Active').length;
-  statDepts.textContent = new Set(employees.map(e => e.department)).size;
+  statDepts.textContent = new Set(employees.map(e => e.department).filter(Boolean)).size;
 
   const recent = [...employees]
     .sort((a, b) => new Date(b.joinDate) - new Date(a.joinDate))
@@ -405,7 +584,7 @@ function updateDashboard() {
     recentEmpsGrid.innerHTML = `
       <div class="empty-state">
         <i class="fa-solid fa-users"></i>
-        <p>No employees found. Click "New Employee" to get started.</p>
+        <p>No employees yet. Click "New Employee" to add your first one.</p>
       </div>`;
   } else {
     recentEmpsGrid.innerHTML = recent.map(emp => createEmployeeCard(emp)).join('');
@@ -429,7 +608,6 @@ function getFilteredSortedEmployees() {
     return matchesSearch && matchesDept && matchesStatus;
   });
 
-  // Sort
   filtered.sort((a, b) => {
     switch (sortValue) {
       case 'name-asc': return a.name.localeCompare(b.name);
@@ -451,7 +629,6 @@ function renderDirectory() {
     resultsCount.textContent = `${filtered.length} employee${filtered.length !== 1 ? 's' : ''}`;
   }
 
-  // Apply view mode class
   employeeGrid.classList.toggle('list-view', currentViewMode === 'list');
 
   if (filtered.length === 0) {
@@ -502,7 +679,6 @@ function showEmployeeDetail(id) {
   pageTitle.textContent = emp.name;
   pageSubtitle.textContent = `${emp.role} · ${emp.department}`;
 
-  // Header
   detailHeader.innerHTML = `
     <div class="detail-avatar" style="background: ${avatarGradient(emp.name)}">
       ${getInitials(emp.name)}
@@ -517,7 +693,6 @@ function showEmployeeDetail(id) {
     </div>
   `;
 
-  // Info tab
   const infoPanel = document.getElementById('tab-info');
   infoPanel.innerHTML = `
     <div class="info-grid">
@@ -554,11 +729,9 @@ function showEmployeeDetail(id) {
     </div>
   `;
 
-  // Reset to info tab
   tabBtns.forEach(t => t.classList.toggle('active', t.getAttribute('data-tab') === 'info'));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-info'));
 
-  // Show the detail section
   views.forEach(v => { v.classList.add('d-none'); v.classList.remove('active'); });
   employeeDetailSection.classList.remove('d-none');
   employeeDetailSection.classList.add('active');
@@ -573,14 +746,19 @@ detailEditBtn.addEventListener('click', () => {
 });
 
 // Detail: Delete button
-detailDeleteBtn.addEventListener('click', () => {
+detailDeleteBtn.addEventListener('click', async () => {
   const emp = employees.find(e => e.id === currentDetailId);
-  if (emp && confirm(`Are you sure you want to remove ${emp.name}?`)) {
+  if (!emp) return;
+  if (!confirm(`Are you sure you want to remove ${emp.name}?`)) return;
+
+  try {
+    await api.deleteEmployee(currentDetailId);
     employees = employees.filter(em => em.id !== currentDetailId);
-    saveEmployees(employees);
     showToast(`${emp.name} removed.`, 'error');
     currentDetailId = null;
     switchView('directory');
+  } catch (err) {
+    showToast('Failed to delete: ' + err.message, 'error');
   }
 });
 
@@ -637,7 +815,7 @@ csvFileInput.addEventListener('change', (e) => {
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = (event) => {
+  reader.onload = async (event) => {
     try {
       const text = event.target.result;
       const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -647,11 +825,9 @@ csvFileInput.addEventListener('change', (e) => {
         return;
       }
 
-      // Parse header
       const headerLine = lines[0];
       const headers = parseCSVRow(headerLine);
 
-      // Map headers to fields (case-insensitive)
       const fieldMap = {
         'id': 'id', 'name': 'name', 'full name': 'name', 'role': 'role',
         'designation': 'role', 'department': 'department', 'dept': 'department',
@@ -668,7 +844,7 @@ csvFileInput.addEventListener('change', (e) => {
 
       const colMap = headers.map(h => fieldMap[h.toLowerCase().trim()] || null);
 
-      let imported = 0;
+      const rowsToImport = [];
       for (let i = 1; i < lines.length; i++) {
         const values = parseCSVRow(lines[i]);
         const empObj = {};
@@ -677,35 +853,46 @@ csvFileInput.addEventListener('change', (e) => {
             empObj[field] = values[idx];
           }
         });
-
-        // Skip rows without a name
         if (!empObj.name || !empObj.name.trim()) continue;
-
-        // Generate a unique ID if not present or if it conflicts
-        if (!empObj.id || employees.some(e => e.id === empObj.id)) {
-          empObj.id = Date.now().toString() + '_' + i;
-        }
-
-        employees.push(normalizeEmployee(empObj));
-        imported++;
+        // Don't reuse imported IDs — let the server generate fresh ones
+        delete empObj.id;
+        if (!empObj.role) empObj.role = 'Unspecified';
+        if (!empObj.department) empObj.department = 'Administration';
+        if (!empObj.status) empObj.status = 'Active';
+        rowsToImport.push(empObj);
       }
 
-      saveEmployees(employees);
+      showToast(`Importing ${rowsToImport.length} employee${rowsToImport.length !== 1 ? 's' : ''}…`);
+      let imported = 0;
+      let failed = 0;
+      for (const row of rowsToImport) {
+        try {
+          const { employee } = await api.createEmployee(row);
+          employees.unshift(normalizeEmployee(employee));
+          imported++;
+        } catch (err) {
+          console.error('Import row failed:', row, err);
+          failed++;
+        }
+      }
+
       updateAllViews();
-      showToast(`Imported ${imported} employee${imported !== 1 ? 's' : ''} from CSV.`);
+      if (failed === 0) {
+        showToast(`Imported ${imported} employee${imported !== 1 ? 's' : ''} from CSV.`);
+      } else {
+        showToast(`Imported ${imported}, failed ${failed}. See console.`, 'error');
+      }
     } catch (err) {
       showToast('Failed to parse CSV file.', 'error');
       console.error('CSV import error:', err);
     }
 
-    // Reset file input so the same file can be re-imported
     csvFileInput.value = '';
   };
 
   reader.readAsText(file);
 });
 
-// Simple CSV row parser that handles quoted fields
 function parseCSVRow(row) {
   const result = [];
   let current = '';
@@ -717,7 +904,7 @@ function parseCSVRow(row) {
       if (char === '"') {
         if (i + 1 < row.length && row[i + 1] === '"') {
           current += '"';
-          i++; // skip escaped quote
+          i++;
         } else {
           inQuotes = false;
         }
@@ -740,5 +927,30 @@ function parseCSVRow(row) {
   return result;
 }
 
-// ===== INITIAL LOAD =====
-updateAllViews();
+// ============================================================
+//  BOOTSTRAP — auth check, then either show app or auth screen
+// ============================================================
+(async function bootstrap() {
+  showLoader(true);
+  try {
+    if (auth.isLoggedIn()) {
+      // Verify the stored token is still valid
+      try {
+        const { user } = await api.me();
+        auth.setUser(user);
+        setUserChip(user);
+        showApp();
+        await loadEmployees();
+        switchView('dashboard');
+      } catch (err) {
+        // Token expired or server unreachable — fall back to auth screen
+        auth.clear();
+        showAuthScreen();
+      }
+    } else {
+      showAuthScreen();
+    }
+  } finally {
+    showLoader(false);
+  }
+})();

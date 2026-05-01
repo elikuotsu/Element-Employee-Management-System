@@ -11,7 +11,67 @@
 </head>
 <body>
 
-  <div class="app-container">
+  <!-- ====== AUTH SCREEN (login / signup) — shown when not authenticated ====== -->
+  <div class="auth-screen d-none" id="authScreen">
+    <div class="auth-card">
+      <div class="auth-brand">
+        <div class="brand-logo">
+          <i class="fa-solid fa-leaf"></i>
+        </div>
+        <div class="brand-text">
+          <h1>ELEMENT</h1>
+          <span>Govt. of Nagaland</span>
+        </div>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-auth-tab="login" type="button">Sign In</button>
+        <button class="auth-tab" data-auth-tab="signup" type="button">Create Account</button>
+      </div>
+
+      <!-- Login form -->
+      <form class="auth-form active" id="loginForm" autocomplete="on">
+        <div class="form-group">
+          <label for="loginEmail">Email Address</label>
+          <input type="email" id="loginEmail" required placeholder="you@element.in" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="loginPassword">Password</label>
+          <input type="password" id="loginPassword" required placeholder="Your password" autocomplete="current-password">
+        </div>
+        <div class="auth-error d-none" id="loginError"></div>
+        <button type="submit" class="btn btn-primary w-100" id="loginSubmitBtn">
+          <i class="fa-solid fa-right-to-bracket"></i>
+          <span>Sign In</span>
+        </button>
+      </form>
+
+      <!-- Signup form -->
+      <form class="auth-form d-none" id="signupForm" autocomplete="on">
+        <div class="form-group">
+          <label for="signupName">Full Name</label>
+          <input type="text" id="signupName" required placeholder="e.g. Admin User" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label for="signupEmail">Email Address</label>
+          <input type="email" id="signupEmail" required placeholder="you@element.in" autocomplete="email">
+        </div>
+        <div class="form-group">
+          <label for="signupPassword">Password</label>
+          <input type="password" id="signupPassword" required placeholder="At least 6 characters" minlength="6" autocomplete="new-password">
+        </div>
+        <div class="auth-error d-none" id="signupError"></div>
+        <button type="submit" class="btn btn-primary w-100" id="signupSubmitBtn">
+          <i class="fa-solid fa-user-plus"></i>
+          <span>Create Account</span>
+        </button>
+      </form>
+
+      <p class="auth-hint text-muted">Your data is securely stored in the cloud.</p>
+    </div>
+  </div>
+
+  <div class="app-container d-none" id="appContainer">
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
@@ -69,10 +129,21 @@
             <i class="fa-solid fa-moon"></i>
           </button>
 
-          <div class="user-chip">
-            <div class="user-avatar">A</div>
+          <div class="user-chip" id="userChip" title="Account menu">
+            <div class="user-avatar" id="userAvatar">A</div>
             <div class="user-info">
-              <span class="user-name">Admin</span>
+              <span class="user-name" id="userName">Admin</span>
+            </div>
+            <i class="fa-solid fa-chevron-down" style="font-size: 0.7rem; color: var(--text-muted);"></i>
+            <div class="user-menu d-none" id="userMenu">
+              <div class="user-menu-info">
+                <div class="user-menu-name" id="userMenuName">Admin</div>
+                <div class="user-menu-email" id="userMenuEmail">admin@element.in</div>
+              </div>
+              <button type="button" class="user-menu-item" id="logoutBtn">
+                <i class="fa-solid fa-right-from-bracket"></i>
+                <span>Sign Out</span>
+              </button>
             </div>
           </div>
         </div>
@@ -420,6 +491,12 @@
   <!-- Toast Notification -->
   <div class="toast-container" id="toastContainer"></div>
 
+  <!-- Full-page loading overlay (used during auth check + data loads) -->
+  <div class="page-loader d-none" id="pageLoader">
+    <div class="page-loader-spinner"></div>
+  </div>
+
+  <script src="assets/js/api.js"></script>
   <script src="assets/js/app.js"></script>
 </body>
 </html>
