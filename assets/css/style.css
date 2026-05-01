@@ -1614,6 +1614,219 @@ select:focus {
 }
 
 /* ============================================================
+   BULK ACTION BAR (Directory)
+   ============================================================ */
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  background-color: var(--primary-light);
+  border: 1px solid var(--primary);
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.875rem;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.bulk-bar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--text-main);
+}
+
+.bulk-bar-left .checkbox-row span {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.bulk-bar-actions {
+  display: flex;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+/* Per-card selection checkbox */
+.emp-select {
+  position: absolute;
+  top: 0.875rem;
+  left: 0.875rem;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* Visually mark a card as selected */
+.emp-card.is-selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.employee-grid.select-mode .emp-card {
+  padding-left: 2.5rem;
+}
+
+.employee-grid.select-mode .emp-actions {
+  pointer-events: none;
+  opacity: 0.4;
+}
+
+/* Quick activate/deactivate icon next to the existing edit/delete buttons */
+.emp-actions .toggle-status-btn:hover {
+  color: #f59e0b !important;
+}
+.emp-actions .toggle-status-btn.is-inactive:hover {
+  color: var(--primary) !important;
+}
+
+/* Self-only directory banner */
+.self-only-note {
+  display: flex;
+  gap: 0.625rem;
+  align-items: flex-start;
+  background-color: var(--bg-muted);
+  border: 1px solid var(--border-light);
+  border-radius: 0.5rem;
+  padding: 0.75rem 0.875rem;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  margin-top: 1rem;
+}
+
+.self-only-note i { color: var(--primary); margin-top: 2px; }
+
+/* ============================================================
+   DEPARTMENTS VIEW
+   ============================================================ */
+.dept-new-row {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  align-items: stretch;
+}
+
+.dept-new-row input[type="text"] {
+  flex: 1;
+  padding: 0.4375rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  background-color: var(--bg-surface);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+
+.dept-new-row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.dept-name-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dept-name-edit {
+  padding: 0.3125rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  background-color: var(--bg-body);
+  color: var(--text-main);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  width: 100%;
+  max-width: 240px;
+}
+
+.dept-name-edit:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
+}
+
+.dept-row-actions {
+  display: flex;
+  gap: 0.25rem;
+  justify-content: flex-end;
+}
+
+.dept-empty-pill {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ============================================================
+   AUDIT FEED (employee Timeline tab)
+   ============================================================ */
+.audit-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.audit-entry {
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  box-shadow: var(--shadow-sm);
+}
+
+.audit-icon {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 50%;
+  background-color: var(--primary-light);
+  color: var(--primary);
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+}
+
+.audit-icon.audit-deleted { background-color: var(--status-inactive-bg); color: var(--status-inactive-text); }
+.audit-icon.audit-status_changed { background-color: rgba(245, 158, 11, 0.15); color: #d97706; }
+
+.audit-body { font-size: 0.8125rem; color: var(--text-secondary); flex: 1; }
+
+.audit-headline {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.audit-headline strong { font-weight: 600; }
+
+.audit-time {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin-top: 0.1875rem;
+}
+
+.audit-changes {
+  margin-top: 0.375rem;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.audit-changes .audit-change-field {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+/* ============================================================
    CLAIM OWNER MODAL
    ============================================================ */
 .claim-explainer {

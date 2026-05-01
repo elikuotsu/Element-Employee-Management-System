@@ -66,6 +66,9 @@ function isOwner() {
 let employees = [];
 let leaveRequests = [];
 let userAccounts = [];
+let departments = []; // [{id, name, employeeCount}]
+let selectMode = false;
+let selectedIds = new Set();
 
 function normalizeEmployee(emp) {
   return {
@@ -157,6 +160,27 @@ const leaveRejectBtn = document.getElementById('leaveRejectBtn');
 // Users section
 const usersSection = document.getElementById('users');
 const usersTableBody = document.getElementById('usersTableBody');
+
+// Departments section
+const navDepartments = document.getElementById('nav-departments');
+const departmentsSection = document.getElementById('departments');
+const departmentsTableBody = document.getElementById('departmentsTableBody');
+const newDeptForm = document.getElementById('newDeptForm');
+const newDeptName = document.getElementById('newDeptName');
+
+// Bulk action bar
+const selectModeBtn = document.getElementById('selectModeBtn');
+const bulkBar = document.getElementById('bulkBar');
+const bulkSelectAll = document.getElementById('bulkSelectAll');
+const bulkSelectionCount = document.getElementById('bulkSelectionCount');
+const bulkActivateBtn = document.getElementById('bulkActivateBtn');
+const bulkDeactivateBtn = document.getElementById('bulkDeactivateBtn');
+const bulkDeleteBtn = document.getElementById('bulkDeleteBtn');
+const bulkExitBtn = document.getElementById('bulkExitBtn');
+const selfOnlyNote = document.getElementById('selfOnlyNote');
+
+// Audit feed
+const auditFeed = document.getElementById('auditFeed');
 
 // Claim Owner modal
 const claimOwnerBtn = document.getElementById('claimOwnerBtn');
@@ -338,15 +362,28 @@ function applyRoleVisibility() {
   const privileged = isPrivileged();
   // Sidebar: "Add employee" stays admin-only.
   if (addEmployeeBtn) addEmployeeBtn.classList.toggle('d-none', !privileged);
-  // Sidebar: "User Roles" only visible to admin/owner.
+  // Sidebar: "Departments" + "User Roles" only visible to admin/owner.
+  if (navDepartments) navDepartments.classList.toggle('d-none', !privileged);
   if (navUsers) navUsers.classList.toggle('d-none', !privileged);
-  // Directory CSV import + edit/delete buttons stay visible (admins see them);
-  // we still gate the underlying actions server-side.
+  // Directory CSV import + bulk-select + edit/delete are admin-only.
   if (importCsvBtn) importCsvBtn.classList.toggle('d-none', !privileged);
+  if (selectModeBtn) selectModeBtn.classList.toggle('d-none', !privileged);
   // Leave scope filter (everyone vs mine) only matters for privileged viewers.
   if (leaveScopeWrap) leaveScopeWrap.classList.toggle('d-none', !privileged);
   // Once a user is owner there's nothing for the claim flow to do.
   if (claimOwnerBtn) claimOwnerBtn.classList.toggle('d-none', isOwner());
+  // Self-only note pops in for non-privileged users on the directory page.
+  if (selfOnlyNote) selfOnlyNote.classList.toggle('d-none', privileged);
+  // Hide directory filters/sort for non-privileged since they only see one row.
+  document.querySelectorAll('#directory .filter-group').forEach((el) => {
+    el.classList.toggle('d-none', !privileged);
+  });
+  document.querySelectorAll('#directory .controls-right .csv-actions').forEach((el) => {
+    el.classList.toggle('d-none', !privileged);
+  });
+  document.querySelectorAll('#directory .view-toggle').forEach((el) => {
+    el.classList.toggle('d-none', !privileged);
+  });
 }
 
 // Switch between login and signup tabs
@@ -427,6 +464,7 @@ async function onLoginSuccess(user) {
   showApp();
   await loadEmployees();
   await loadLeaves();
+  if (isPrivileged()) await loadDepartments();
   switchView('dashboard');
 }
 
@@ -509,7 +547,19 @@ function switchView(targetId) {
     pageTitle.textContent = 'User Roles';
     pageSubtitle.textContent = 'Manage who is an owner, admin, or employee.';
     loadUsers();
+  } else if (targetId === 'departments') {
+    if (!isPrivileged()) {
+      switchView('dashboard');
+      return;
+    }
+    pageTitle.textContent = 'Departments';
+    pageSubtitle.textContent = 'Add, rename, or remove the departments your employees belong to.';
+    loadDepartments();
   }
+
+  // Leaving the directory view should also exit select mode so it doesn't
+  // surprise the user when they come back.
+  if (targetId !== 'directory' && selectMode) exitSelectMode();
 
   navItems.forEach(n => {
     const navTarget = n.getAttribute('data-target');
@@ -531,7 +581,35 @@ function populateManagerDropdown(excludeId) {
   empManagerInput.innerHTML = '<option value="">None (Top Level)</option>';
   employees.forEach(emp => {
     if (emp.id !== excludeId) {
-      empManagerInput.innerHTML += `<option value="${emp.id}">${emp.name} — ${emp.role}</option>`;
+      empManagerInput.innerHTML += `<option value="${emp.id}">${escapeHtml(emp.name)} — ${escapeHtml(emp.role)}</option>`;
+    }
+  });
+}
+
+// Refresh the department <select>s from the loaded departments. We always
+// keep at least the four defaults, but admins can add/rename/delete in the
+// Departments page and have those changes appear here on the next refresh.
+function populateDepartmentDropdowns(selected) {
+  const targets = [empDeptInput, deptFilter];
+  targets.forEach((select) => {
+    if (!select) return;
+    const current = selected !== undefined ? selected : select.value;
+    // The directory filter has a leading "All" option; the form does not.
+    const isFilter = select === deptFilter;
+    const opts = [];
+    if (isFilter) {
+      opts.push('<option value="all">All Departments</option>');
+    } else {
+      opts.push('<option value="" disabled>Select Department</option>');
+    }
+    departments.forEach((d) => {
+      opts.push(`<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)}</option>`);
+    });
+    select.innerHTML = opts.join('');
+    if (current) {
+      // Only reapply if the option still exists.
+      const exists = Array.from(select.options).some((o) => o.value === current);
+      if (exists) select.value = current;
     }
   });
 }
@@ -539,6 +617,7 @@ function populateManagerDropdown(excludeId) {
 function openModal(isEdit = false, emp = null) {
   employeeModal.classList.remove('d-none');
   populateManagerDropdown(isEdit && emp ? emp.id : null);
+  populateDepartmentDropdowns(isEdit && emp ? emp.department : '');
 
   if (isEdit && emp) {
     modalTitle.textContent = 'Edit Employee';
@@ -634,8 +713,27 @@ employeeForm.addEventListener('submit', async (e) => {
 
 // ===== RENDERING: EMPLOYEE CARDS =====
 function createEmployeeCard(emp) {
+  const privileged = isPrivileged();
+  const isInactive = emp.status !== 'Active';
+  const checkbox = (privileged && selectMode)
+    ? `<input type="checkbox" class="emp-select" data-id="${emp.id}" ${selectedIds.has(emp.id) ? 'checked' : ''} aria-label="Select ${emp.name}">`
+    : '';
+  const isSelected = selectedIds.has(emp.id);
+
+  const adminActions = privileged ? `
+        <button class="icon-btn toggle-status-btn ${isInactive ? 'is-inactive' : ''}" data-id="${emp.id}" title="${isInactive ? 'Reactivate employee' : 'Deactivate employee'}">
+          <i class="fa-solid ${isInactive ? 'fa-circle-play' : 'fa-circle-pause'}"></i>
+        </button>
+        <button class="icon-btn edit-btn" data-id="${emp.id}" title="Edit">
+          <i class="fa-solid fa-pen"></i>
+        </button>
+        <button class="icon-btn delete-btn" data-id="${emp.id}" title="Delete">
+          <i class="fa-solid fa-trash"></i>
+        </button>` : '';
+
   return `
-    <div class="emp-card" data-emp-id="${emp.id}">
+    <div class="emp-card${isSelected ? ' is-selected' : ''}" data-emp-id="${emp.id}">
+      ${checkbox}
       <div class="status-badge ${emp.status === 'Active' ? 'status-active' : 'status-inactive'}">
         ${emp.status}
       </div>
@@ -644,19 +742,19 @@ function createEmployeeCard(emp) {
           ${getInitials(emp.name)}
         </div>
         <div class="emp-info">
-          <h4>${emp.name}</h4>
-          <span class="role">${emp.role}</span>
-          <div class="dept">${emp.department}</div>
+          <h4>${escapeHtml(emp.name)}</h4>
+          <span class="role">${escapeHtml(emp.role)}</span>
+          <div class="dept">${escapeHtml(emp.department)}</div>
         </div>
       </div>
       <div class="emp-details">
         <div class="emp-detail-item">
           <i class="fa-solid fa-envelope"></i>
-          <span>${emp.email}</span>
+          <span>${escapeHtml(emp.email)}</span>
         </div>
         <div class="emp-detail-item">
           <i class="fa-solid fa-phone"></i>
-          <span>${emp.phone}</span>
+          <span>${escapeHtml(emp.phone)}</span>
         </div>
         <div class="emp-detail-item">
           <i class="fa-regular fa-calendar"></i>
@@ -664,12 +762,7 @@ function createEmployeeCard(emp) {
         </div>
       </div>
       <div class="emp-actions">
-        <button class="icon-btn edit-btn" data-id="${emp.id}" title="Edit">
-          <i class="fa-solid fa-pen"></i>
-        </button>
-        <button class="icon-btn delete-btn" data-id="${emp.id}" title="Delete">
-          <i class="fa-solid fa-trash"></i>
-        </button>
+        ${adminActions}
       </div>
     </div>
   `;
@@ -679,8 +772,27 @@ function attachCardEvents(container) {
   container.querySelectorAll('.emp-card').forEach(card => {
     card.addEventListener('click', (e) => {
       if (e.target.closest('.emp-actions')) return;
+      if (e.target.closest('.emp-select')) return;
+      // In select mode, clicking the card toggles its checkbox instead of
+      // opening the detail view.
+      if (selectMode && isPrivileged()) {
+        const id = card.getAttribute('data-emp-id');
+        toggleSelected(id);
+        return;
+      }
       const id = card.getAttribute('data-emp-id');
       showEmployeeDetail(id);
+    });
+  });
+
+  container.querySelectorAll('.emp-select').forEach((cb) => {
+    cb.addEventListener('change', (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      if (e.currentTarget.checked) selectedIds.add(id);
+      else selectedIds.delete(id);
+      updateBulkBar();
+      const card = e.currentTarget.closest('.emp-card');
+      if (card) card.classList.toggle('is-selected', e.currentTarget.checked);
     });
   });
 
@@ -690,6 +802,25 @@ function attachCardEvents(container) {
       const id = e.currentTarget.getAttribute('data-id');
       const emp = employees.find(em => em.id === id);
       if (emp) openModal(true, emp);
+    });
+  });
+
+  container.querySelectorAll('.toggle-status-btn').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const id = e.currentTarget.getAttribute('data-id');
+      const emp = employees.find(em => em.id === id);
+      if (!emp) return;
+      const newStatus = emp.status === 'Active' ? 'Inactive' : 'Active';
+      try {
+        const { employee } = await api.updateEmployee(id, { ...emp, status: newStatus });
+        const idx = employees.findIndex((x) => x.id === id);
+        if (idx !== -1) employees[idx] = normalizeEmployee(employee);
+        updateAllViews();
+        showToast(`${employee.name} marked ${newStatus}.`);
+      } catch (err) {
+        showToast('Failed to update status: ' + err.message, 'error');
+      }
     });
   });
 
@@ -712,6 +843,93 @@ function attachCardEvents(container) {
     });
   });
 }
+
+// ===== BULK SELECT MODE =====
+function toggleSelected(id) {
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+  renderDirectory();
+  updateBulkBar();
+}
+
+function enterSelectMode() {
+  if (!isPrivileged()) return;
+  selectMode = true;
+  selectedIds.clear();
+  if (employeeGrid) employeeGrid.classList.add('select-mode');
+  if (bulkBar) bulkBar.classList.remove('d-none');
+  if (selectModeBtn) selectModeBtn.classList.add('d-none');
+  renderDirectory();
+  updateBulkBar();
+}
+
+function exitSelectMode() {
+  selectMode = false;
+  selectedIds.clear();
+  if (employeeGrid) employeeGrid.classList.remove('select-mode');
+  if (bulkBar) bulkBar.classList.add('d-none');
+  if (selectModeBtn && isPrivileged()) selectModeBtn.classList.remove('d-none');
+  if (bulkSelectAll) bulkSelectAll.checked = false;
+  renderDirectory();
+}
+
+function updateBulkBar() {
+  if (!bulkSelectionCount) return;
+  const n = selectedIds.size;
+  bulkSelectionCount.textContent = `${n} selected`;
+  if (bulkSelectAll) {
+    const filteredIds = getFilteredSortedEmployees().map((e) => e.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+    bulkSelectAll.checked = allSelected;
+  }
+}
+
+if (selectModeBtn) selectModeBtn.addEventListener('click', enterSelectMode);
+if (bulkExitBtn) bulkExitBtn.addEventListener('click', exitSelectMode);
+
+if (bulkSelectAll) {
+  bulkSelectAll.addEventListener('change', (e) => {
+    const filteredIds = getFilteredSortedEmployees().map((emp) => emp.id);
+    if (e.currentTarget.checked) filteredIds.forEach((id) => selectedIds.add(id));
+    else filteredIds.forEach((id) => selectedIds.delete(id));
+    renderDirectory();
+    updateBulkBar();
+  });
+}
+
+async function applyBulk(action) {
+  if (selectedIds.size === 0) {
+    showToast('Pick at least one employee first.', 'error');
+    return;
+  }
+  const ids = [...selectedIds];
+  let confirmMsg = '';
+  if (action === 'delete') confirmMsg = `Delete ${ids.length} employee${ids.length !== 1 ? 's' : ''}? This cannot be undone.`;
+  else if (action === 'activate') confirmMsg = `Mark ${ids.length} employee${ids.length !== 1 ? 's' : ''} as Active?`;
+  else if (action === 'deactivate') confirmMsg = `Mark ${ids.length} employee${ids.length !== 1 ? 's' : ''} as Inactive?`;
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const { affected } = await api.bulkEmployees(action, ids);
+    if (action === 'delete') {
+      employees = employees.filter((em) => !selectedIds.has(em.id));
+    } else {
+      const newStatus = action === 'activate' ? 'Active' : 'Inactive';
+      employees = employees.map((em) => (selectedIds.has(em.id) ? { ...em, status: newStatus } : em));
+    }
+    selectedIds.clear();
+    updateAllViews();
+    showToast(`${affected} employee${affected !== 1 ? 's' : ''} ${action === 'delete' ? 'deleted' : action + 'd'}.`);
+    if (action === 'delete') exitSelectMode();
+    updateBulkBar();
+  } catch (err) {
+    showToast('Bulk action failed: ' + err.message, 'error');
+  }
+}
+
+if (bulkActivateBtn) bulkActivateBtn.addEventListener('click', () => applyBulk('activate'));
+if (bulkDeactivateBtn) bulkDeactivateBtn.addEventListener('click', () => applyBulk('deactivate'));
+if (bulkDeleteBtn) bulkDeleteBtn.addEventListener('click', () => applyBulk('delete'));
 
 // ===== DASHBOARD =====
 function updateDashboard() {
@@ -917,6 +1135,9 @@ tabBtns.forEach(btn => {
     const tab = btn.getAttribute('data-tab');
     tabBtns.forEach(t => t.classList.toggle('active', t === btn));
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
+    if (tab === 'timeline' && currentDetailId) {
+      loadAuditFeed(currentDetailId);
+    }
   });
 });
 
@@ -1483,6 +1704,202 @@ if (claimOwnerForm) {
   });
 }
 
+// ============================================================
+//  DEPARTMENTS
+// ============================================================
+async function loadDepartments() {
+  try {
+    const { departments: list } = await api.listDepartments();
+    departments = Array.isArray(list) ? list : [];
+    populateDepartmentDropdowns();
+    if (departmentsSection && departmentsSection.classList.contains('active')) {
+      renderDepartments();
+    }
+  } catch (err) {
+    if (err.status === 401) { showAuthScreen(); return; }
+    if (err.status === 403) return; // employees don't get the full list — silently ignore
+    showToast('Failed to load departments: ' + err.message, 'error');
+  }
+}
+
+function renderDepartments() {
+  if (!departmentsTableBody) return;
+  if (departments.length === 0) {
+    departmentsTableBody.innerHTML = `<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:1.25rem">No departments yet.</td></tr>`;
+    return;
+  }
+  departmentsTableBody.innerHTML = departments.map((d) => `
+    <tr data-dept-id="${d.id}">
+      <td>
+        <div class="dept-name-cell">
+          <input type="text" class="dept-name-edit" value="${escapeHtml(d.name)}" maxlength="60">
+        </div>
+      </td>
+      <td>${d.employeeCount}</td>
+      <td>
+        <div class="dept-row-actions">
+          <button class="btn btn-secondary btn-sm dept-rename-btn" data-id="${d.id}">
+            <i class="fa-solid fa-floppy-disk"></i><span>Save</span>
+          </button>
+          <button class="btn btn-danger btn-sm dept-delete-btn" data-id="${d.id}" ${d.employeeCount > 0 ? 'disabled title="Reassign employees first"' : ''}>
+            <i class="fa-solid fa-trash"></i>
+          </button>
+        </div>
+      </td>
+    </tr>
+  `).join('');
+
+  departmentsTableBody.querySelectorAll('.dept-rename-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const row = btn.closest('tr');
+      const input = row.querySelector('.dept-name-edit');
+      const newName = (input.value || '').trim();
+      if (!newName) {
+        showToast('Department name cannot be empty.', 'error');
+        return;
+      }
+      btn.disabled = true;
+      try {
+        await api.renameDepartment(id, newName);
+        showToast('Department renamed.');
+        await loadDepartments();
+        // Renames cascade — refresh employees so the directory reflects them.
+        await loadEmployees();
+      } catch (err) {
+        showToast('Rename failed: ' + err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  departmentsTableBody.querySelectorAll('.dept-delete-btn').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const id = btn.getAttribute('data-id');
+      const dept = departments.find((d) => String(d.id) === String(id));
+      if (!dept) return;
+      if (!confirm(`Delete department "${dept.name}"?`)) return;
+      try {
+        await api.deleteDepartment(id);
+        showToast(`Deleted "${dept.name}".`);
+        await loadDepartments();
+      } catch (err) {
+        showToast('Delete failed: ' + err.message, 'error');
+      }
+    });
+  });
+}
+
+if (newDeptForm) {
+  newDeptForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const name = (newDeptName.value || '').trim();
+    if (!name) return;
+    const submitBtn = newDeptForm.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    try {
+      await api.createDepartment(name);
+      newDeptName.value = '';
+      showToast(`"${name}" added.`);
+      await loadDepartments();
+    } catch (err) {
+      showToast('Could not add department: ' + err.message, 'error');
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}
+
+// ============================================================
+//  AUDIT LOG (Employee Detail → Timeline tab)
+// ============================================================
+const AUDIT_ICONS = {
+  created: { icon: 'fa-plus', cls: 'audit-created', verb: 'created' },
+  updated: { icon: 'fa-pen', cls: 'audit-updated', verb: 'updated' },
+  deleted: { icon: 'fa-trash', cls: 'audit-deleted', verb: 'deleted' },
+  status_changed: { icon: 'fa-circle-half-stroke', cls: 'audit-status_changed', verb: 'changed status of' }
+};
+
+function fieldLabel(name) {
+  const map = {
+    name: 'Name', role: 'Role', department: 'Department', email: 'Email',
+    phone: 'Phone', joinDate: 'Join Date', status: 'Status', dob: 'DOB',
+    gender: 'Gender', bloodGroup: 'Blood Group', address: 'Address',
+    grade: 'Grade', managerId: 'Manager', emergencyName: 'Emergency Contact',
+    emergencyPhone: 'Emergency Phone', notes: 'Notes'
+  };
+  return map[name] || name;
+}
+
+function formatRelative(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (isNaN(date)) return '';
+  const diffMs = Date.now() - date.getTime();
+  const sec = Math.round(diffMs / 1000);
+  if (sec < 60) return 'just now';
+  const min = Math.round(sec / 60);
+  if (min < 60) return `${min} min ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr} hr ago`;
+  const day = Math.round(hr / 24);
+  if (day < 7) return `${day} day${day !== 1 ? 's' : ''} ago`;
+  return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+async function loadAuditFeed(employeeId) {
+  if (!auditFeed) return;
+  auditFeed.innerHTML = `
+    <div class="empty-state">
+      <i class="fa-solid fa-clock-rotate-left"></i>
+      <p>Loading activity…</p>
+    </div>`;
+  try {
+    const { audit } = await api.employeeAudit(employeeId);
+    if (!audit || audit.length === 0) {
+      auditFeed.innerHTML = `
+        <div class="empty-state">
+          <i class="fa-solid fa-clock-rotate-left"></i>
+          <p>No recorded activity yet for this employee.</p>
+        </div>`;
+      return;
+    }
+    auditFeed.innerHTML = audit.map((a) => {
+      const meta = AUDIT_ICONS[a.action] || { icon: 'fa-circle', cls: '', verb: a.action };
+      let changesHtml = '';
+      if (a.action === 'updated' && a.details && a.details.changes) {
+        const entries = Object.entries(a.details.changes);
+        if (entries.length > 0) {
+          changesHtml = `<div class="audit-changes">${entries.map(([field, val]) => {
+            const from = val && val.from !== undefined ? String(val.from) : '';
+            const to = val && val.to !== undefined ? String(val.to) : '';
+            return `<div><span class="audit-change-field">${escapeHtml(fieldLabel(field))}:</span> ${escapeHtml(from || '—')} → ${escapeHtml(to || '—')}</div>`;
+          }).join('')}</div>`;
+        }
+      } else if (a.action === 'status_changed' && a.details) {
+        changesHtml = `<div class="audit-changes"><div><span class="audit-change-field">Status:</span> ${escapeHtml(a.details.from || '—')} → ${escapeHtml(a.details.to || '—')}</div></div>`;
+      }
+      return `
+        <div class="audit-entry">
+          <div class="audit-icon ${meta.cls}"><i class="fa-solid ${meta.icon}"></i></div>
+          <div class="audit-body">
+            <div class="audit-headline"><strong>${escapeHtml(a.userName)}</strong> ${escapeHtml(meta.verb)} this employee${a.action === 'created' && a.details ? '' : ''}</div>
+            <div class="audit-time">${escapeHtml(formatRelative(a.createdAt))}</div>
+            ${changesHtml}
+          </div>
+        </div>`;
+    }).join('');
+  } catch (err) {
+    if (err.status === 401) { showAuthScreen(); return; }
+    auditFeed.innerHTML = `
+      <div class="empty-state">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <p>Could not load activity: ${escapeHtml(err.message || 'Unknown error')}</p>
+      </div>`;
+  }
+}
+
 async function refreshCurrentUser() {
   try {
     const { user } = await api.me();
@@ -1512,6 +1929,7 @@ async function refreshCurrentUser() {
         showApp();
         await loadEmployees();
         await loadLeaves();
+        if (isPrivileged()) await loadDepartments();
         switchView('dashboard');
       } catch (err) {
         // Token expired or server unreachable — fall back to auth screen

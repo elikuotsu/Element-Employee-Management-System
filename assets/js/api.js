@@ -108,6 +108,37 @@
         method: 'DELETE'
       });
     },
+    bulkEmployees(action, ids) {
+      return request('/employees/bulk', {
+        method: 'POST',
+        body: JSON.stringify({ action, ids })
+      });
+    },
+    employeeAudit(id) {
+      return request('/employees/' + encodeURIComponent(id) + '/audit', { method: 'GET' });
+    },
+
+    // Departments
+    listDepartments() {
+      return request('/departments', { method: 'GET' });
+    },
+    createDepartment(name) {
+      return request('/departments', {
+        method: 'POST',
+        body: JSON.stringify({ name })
+      });
+    },
+    renameDepartment(id, name) {
+      return request('/departments/' + encodeURIComponent(id), {
+        method: 'PATCH',
+        body: JSON.stringify({ name })
+      });
+    },
+    deleteDepartment(id) {
+      return request('/departments/' + encodeURIComponent(id), {
+        method: 'DELETE'
+      });
+    },
 
     // Users (admin/owner)
     listUsers() {

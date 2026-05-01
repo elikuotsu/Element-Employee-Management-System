@@ -1,7 +1,16 @@
-// GET  /api/employees       — list all employees (auth required)
-// POST /api/employees       — create new employee (auth required)
-import { sql, ensureTables, rowToEmployee, nullIfEmpty, getBody } from '../_lib/db.js';
-import { requireAuth } from '../_lib/auth.js';
+// GET  /api/employees — list employees
+//   • Owner / Admin: full directory
+//   • Employee: only their own record (matched by email)
+// POST /api/employees — create new employee (privileged only)
+import {
+  sql,
+  ensureTables,
+  rowToEmployee,
+  nullIfEmpty,
+  getBody,
+  writeEmployeeAudit
+} from '../_lib/db.js';
+import { requireAuth, requirePrivileged, isPrivileged } from '../_lib/auth.js';
 
 export default async function handler(req, res) {
   const user = requireAuth(req, res);
@@ -11,15 +20,29 @@ export default async function handler(req, res) {
     await ensureTables();
 
     if (req.method === 'GET') {
-      const result = await sql`
-        SELECT * FROM employees ORDER BY created_at DESC
-      `;
+      let result;
+      if (isPrivileged(user)) {
+        result = await sql`
+          SELECT * FROM employees ORDER BY created_at DESC
+        `;
+      } else {
+        // Match the directory record by the user's login email so each
+        // employee can pull up their own profile and nothing else.
+        const myEmail = String(user.email || '').toLowerCase();
+        result = await sql`
+          SELECT * FROM employees
+          WHERE LOWER(email) = ${myEmail}
+          ORDER BY created_at DESC
+        `;
+      }
       return res.status(200).json({
         employees: result.rows.map(rowToEmployee)
       });
     }
 
     if (req.method === 'POST') {
+      if (!requirePrivileged(user, res)) return;
+
       const e = getBody(req);
       if (!e.name || !e.role || !e.department) {
         return res.status(400).json({ error: 'Name, role, and department are required.' });
@@ -45,7 +68,21 @@ export default async function handler(req, res) {
       `;
 
       const result = await sql`SELECT * FROM employees WHERE id = ${id}`;
-      return res.status(201).json({ employee: rowToEmployee(result.rows[0]) });
+      const employee = rowToEmployee(result.rows[0]);
+
+      await writeEmployeeAudit({
+        employeeId: id,
+        employeeName: employee.name,
+        user,
+        action: 'created',
+        details: {
+          role: employee.role,
+          department: employee.department,
+          status: employee.status
+        }
+      });
+
+      return res.status(201).json({ employee });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

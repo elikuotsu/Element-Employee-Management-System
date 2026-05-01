@@ -96,6 +96,10 @@
           <span>Leave Requests</span>
           <span class="nav-badge d-none" id="leavesBadge">0</span>
         </a>
+        <a href="#" class="nav-item d-none" data-target="departments" id="nav-departments">
+          <div class="nav-icon"><i class="fa-solid fa-sitemap"></i></div>
+          <span>Departments</span>
+        </a>
         <a href="#" class="nav-item d-none" data-target="users" id="nav-users">
           <div class="nav-icon"><i class="fa-solid fa-user-shield"></i></div>
           <span>User Roles</span>
@@ -264,6 +268,10 @@
                   <i class="fa-solid fa-list"></i>
                 </button>
               </div>
+              <button class="btn btn-secondary btn-sm d-none" id="selectModeBtn" title="Select multiple">
+                <i class="fa-solid fa-square-check"></i>
+                <span>Select</span>
+              </button>
               <div class="csv-actions">
                 <button class="btn btn-secondary btn-sm" id="exportCsvBtn" title="Export to CSV">
                   <i class="fa-solid fa-download"></i>
@@ -279,7 +287,36 @@
             </div>
           </div>
 
+          <!-- Bulk action bar — appears only while in select mode -->
+          <div class="bulk-bar d-none" id="bulkBar">
+            <div class="bulk-bar-left">
+              <label class="checkbox-row">
+                <input type="checkbox" id="bulkSelectAll">
+                <span id="bulkSelectionCount">0 selected</span>
+              </label>
+            </div>
+            <div class="bulk-bar-actions">
+              <button class="btn btn-secondary btn-sm" id="bulkActivateBtn">
+                <i class="fa-solid fa-circle-check"></i><span>Activate</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="bulkDeactivateBtn">
+                <i class="fa-solid fa-circle-pause"></i><span>Deactivate</span>
+              </button>
+              <button class="btn btn-danger btn-sm" id="bulkDeleteBtn">
+                <i class="fa-solid fa-trash"></i><span>Delete</span>
+              </button>
+              <button class="btn btn-secondary btn-sm" id="bulkExitBtn">
+                <i class="fa-solid fa-xmark"></i><span>Done</span>
+              </button>
+            </div>
+          </div>
+
           <div class="employee-grid" id="employeeGrid"></div>
+          <!-- Self-only banner shown to non-privileged users on the directory page -->
+          <div class="self-only-note d-none" id="selfOnlyNote">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>You are viewing your own profile. Ask an administrator if you need to look up other staff.</span>
+          </div>
         </section>
 
         <!-- ====== EMPLOYEE DETAIL VIEW ====== -->
@@ -329,10 +366,11 @@
               </div>
             </div>
             <div class="tab-panel" id="tab-timeline">
-              <div class="coming-soon">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-                <h4>Activity Timeline</h4>
-                <p>View employee activity history. Coming in a future update.</p>
+              <div class="audit-feed" id="auditFeed">
+                <div class="empty-state">
+                  <i class="fa-solid fa-clock-rotate-left"></i>
+                  <p>Loading activity…</p>
+                </div>
               </div>
             </div>
           </div>
@@ -376,6 +414,35 @@
           </div>
 
           <div class="leave-list" id="leaveList"></div>
+        </section>
+
+        <!-- ====== DEPARTMENTS VIEW (admin / owner only) ====== -->
+        <section id="departments" class="view-section d-none">
+          <div class="users-banner">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>
+              Renaming a department updates every employee assigned to it. A
+              department cannot be deleted while employees still belong to it.
+            </span>
+          </div>
+          <form id="newDeptForm" class="dept-new-row">
+            <input type="text" id="newDeptName" placeholder="New department name" maxlength="60" required>
+            <button type="submit" class="btn btn-primary btn-sm">
+              <i class="fa-solid fa-plus"></i><span>Add Department</span>
+            </button>
+          </form>
+          <div class="users-table-wrap">
+            <table class="users-table" id="departmentsTable">
+              <thead>
+                <tr>
+                  <th>Department</th>
+                  <th>Employees</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="departmentsTableBody"></tbody>
+            </table>
+          </div>
         </section>
 
         <!-- ====== USER ROLES VIEW (admin / owner only) ====== -->

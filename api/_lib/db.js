@@ -94,7 +94,86 @@ export async function ensureTables() {
     )
   `;
 
+  await sql`
+    CREATE TABLE IF NOT EXISTS departments (
+      id SERIAL PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+
+  // Seed default departments only if the table is empty. We don't ship more
+  // than this — admins manage the rest from the UI.
+  const deptCount = await sql`SELECT COUNT(*)::int AS count FROM departments`;
+  if ((deptCount.rows[0]?.count || 0) === 0) {
+    await sql`
+      INSERT INTO departments (name) VALUES
+        ('Administration'),
+        ('Field Operations'),
+        ('Technical Support'),
+        ('Finance')
+      ON CONFLICT (name) DO NOTHING
+    `;
+  }
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS employee_audit_log (
+      id SERIAL PRIMARY KEY,
+      employee_id TEXT NOT NULL,
+      employee_name_snapshot TEXT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      user_name_snapshot TEXT,
+      action TEXT NOT NULL,
+      details JSONB,
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `;
+  // Index for fast per-employee timeline queries.
+  await sql`
+    CREATE INDEX IF NOT EXISTS employee_audit_log_employee_id_idx
+    ON employee_audit_log (employee_id, created_at DESC)
+  `;
+
   tablesEnsured = true;
+}
+
+// Append-only audit writer. Failures are swallowed (we never want a crashing
+// audit log to block a successful user write) but logged to the console.
+export async function writeEmployeeAudit({ employeeId, employeeName, user, action, details }) {
+  try {
+    await sql`
+      INSERT INTO employee_audit_log (
+        employee_id, employee_name_snapshot, user_id, user_name_snapshot, action, details
+      ) VALUES (
+        ${employeeId},
+        ${employeeName || null},
+        ${user?.id || null},
+        ${user?.name || user?.email || null},
+        ${action},
+        ${details ? JSON.stringify(details) : null}
+      )
+    `;
+  } catch (err) {
+    console.error('audit write failed:', err);
+  }
+}
+
+// Map an audit row to the camelCase shape used by the frontend.
+export function rowToAudit(row) {
+  let details = row.details;
+  if (typeof details === 'string') {
+    try { details = JSON.parse(details); } catch { /* keep as-is */ }
+  }
+  return {
+    id: String(row.id),
+    employeeId: row.employee_id,
+    employeeName: row.employee_name_snapshot || '',
+    userId: row.user_id,
+    userName: row.user_name_snapshot || 'Unknown',
+    action: row.action,
+    details: details || null,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at || '')
+  };
 }
 
 // Convert empty strings to null so date columns and the like don't error.
